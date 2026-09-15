@@ -203,9 +203,11 @@ contract Market is Ownable, ReentrancyGuard {
     function healthFactor(address user) external view returns (uint256) {
         Position memory pos = positions[user];
         if (pos.debt == 0) return type(uint256).max;
-        uint256 maxBorrowAtLiqThresholdWad = (_collateralValueWad(pos.collateral) * liquidationThreshold) / WAD;
         uint256 debtWad = _toWad(pos.debt, debtDecimals);
-        return (maxBorrowAtLiqThresholdWad * WAD) / debtWad;
+        // Equivalent to (collateralValueWad * liquidationThreshold / WAD) * WAD / debtWad,
+        // but collapsing the intermediate /WAD * WAD round-trip avoids a
+        // truncation step that redundant round-trip would otherwise cause.
+        return (_collateralValueWad(pos.collateral) * liquidationThreshold) / debtWad;
     }
 
     function isLiquidatable(address user) public view returns (bool) {
@@ -247,6 +249,11 @@ contract Market is Ownable, ReentrancyGuard {
     /// on-chain decimals. Only the collateral amount fed in needs normalizing.
     /// @return Collateral value in WAD (18-decimal), debt-equivalent terms.
     function _collateralValueWad(uint256 collateralAmountNative) internal view returns (uint256) {
+        // updatedAt/paused deliberately ignored here -- this helper backs
+        // view functions (healthFactor, isSystemSolvent) that must not
+        // revert just because the oracle happens to be paused; the actual
+        // staleness/paused gate for state-changing actions is
+        // _requireFreshPrice(), used separately by borrow()/liquidate().
         (uint256 price,,) = oracle.latestPrice();
         uint256 collateralWad = _toWad(collateralAmountNative, collateralDecimals);
         return (collateralWad * price) / WAD;

@@ -22,23 +22,31 @@ contract HaltController is Ownable {
 
     event StateChanged(MarketState indexed previous, MarketState indexed next);
     event ForceResumed(address indexed by, bytes32 reasonHash, string reason);
-    event KeeperUpdated(address previous, address next);
+    event KeeperUpdated(address indexed previous, address indexed next);
 
     error NotAuthorized();
     error WrongState(MarketState required, MarketState actual);
+    error ZeroAddress();
 
     modifier onlyKeeperOrOwner() {
         if (msg.sender != keeper && msg.sender != owner()) revert NotAuthorized();
         _;
     }
 
+    /// @dev keeper_/newKeeper reject the zero address deliberately -- not
+    /// because a zero keeper would break anything (the owner can always act
+    /// via onlyKeeperOrOwner regardless), but to prevent a silent, easy-to-miss
+    /// misconfiguration. To deliberately run without a separate keeper, pass
+    /// owner_'s own address instead of the zero address.
     constructor(address oracle_, address owner_, address keeper_) Ownable(owner_) {
+        if (oracle_ == address(0) || keeper_ == address(0)) revert ZeroAddress();
         oracle = IPausableOracle(oracle_);
         keeper = keeper_;
         state = MarketState.OPEN;
     }
 
     function setKeeper(address newKeeper) external onlyOwner {
+        if (newKeeper == address(0)) revert ZeroAddress();
         emit KeeperUpdated(keeper, newKeeper);
         keeper = newKeeper;
     }

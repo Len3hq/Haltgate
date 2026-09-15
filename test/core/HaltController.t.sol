@@ -162,4 +162,20 @@ contract HaltControllerTest is Test {
         controller.setKeeper(stranger);
         assertEq(controller.keeper(), stranger);
     }
+
+    function test_SetKeeper_RevertsOnZeroAddress() public {
+        vm.prank(owner);
+        vm.expectRevert(HaltController.ZeroAddress.selector);
+        controller.setKeeper(address(0));
+    }
+
+    function test_Constructor_RevertsOnZeroKeeper() public {
+        vm.expectRevert(HaltController.ZeroAddress.selector);
+        new HaltController(address(oracle), owner, address(0));
+    }
+
+    function test_Constructor_RevertsOnZeroOracle() public {
+        vm.expectRevert(HaltController.ZeroAddress.selector);
+        new HaltController(address(0), owner, keeper);
+    }
 }
