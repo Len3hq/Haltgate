@@ -209,4 +209,116 @@ contract MarketTest is Test {
         vm.expectRevert(Market.InvalidRiskParams.selector);
         new Market(address(wNVDAx), address(usdg), address(oracle), address(controller), owner, 0.5e18, 0.5e18);
     }
+
+    // --- Liquidation ---
+
+    function _makeAliceLiquidatable() internal {
+        vm.startPrank(alice);
+        market.supply(10e18); // value 1800 @ 180
+        market.borrow(900e18); // exactly maxLTV, safe until price moves
+        vm.stopPrank();
+
+        vm.startPrank(owner);
+        oracle.pauseOracle();
+        controller.sync(); // OPEN -> HALTED
+        oracle.resumeOracle(90e18); // price halves -> collateral value now 900
+        controller.sync(); // HALTED -> RESUMING
+        controller.completeResume(); // RESUMING -> OPEN (owner is also keeper-equivalent here)
+        vm.stopPrank();
+        // liq threshold value = 900 * 0.55 = 495 < 900 debt -> liquidatable
+    }
+
+    function test_Liquidate_Success() public {
+        _makeAliceLiquidatable();
+        assertTrue(market.isLiquidatable(alice));
+
+        vm.prank(owner);
+        usdg.mint(liquidator, 1_000e18);
+        vm.startPrank(liquidator);
+        usdg.approve(address(market), type(uint256).max);
+        market.liquidate(alice, 100e18);
+        vm.stopPrank();
+
+        (uint256 collateral, uint256 debt) = market.positions(alice);
+        assertEq(debt, 800e18, "debt should drop by exactly the repaid amount");
+
+        // collateral seized = (100 / 90) * 1.05 = 1.1666...e18
+        uint256 repayAmount_ = 100e18;
+        uint256 price_ = 90e18;
+        uint256 bonusMultiplier = 1.05e18;
+        uint256 collateralAtPar = (repayAmount_ * 1e18) / price_;
+        uint256 expectedSeized = (collateralAtPar * bonusMultiplier) / 1e18;
+        assertEq(collateral, 10e18 - expectedSeized);
+        assertEq(wNVDAx.balanceOf(liquidator), expectedSeized);
+    }
+
+    function test_Liquidate_RevertsWhenNotLiquidatable() public {
+        vm.startPrank(alice);
+        market.supply(10e18);
+        market.borrow(500e18); // safely within thresholds
+        vm.stopPrank();
+
+        vm.prank(liquidator);
+        vm.expectRevert(Market.NotLiquidatable.selector);
+        market.liquidate(alice, 100e18);
+    }
+
+    function test_Liquidate_RevertsWhenHalted() public {
+        vm.startPrank(alice);
+        market.supply(10e18);
+        market.borrow(900e18);
+        vm.stopPrank();
+
+        vm.prank(owner);
+        oracle.pauseOracle();
+        controller.sync(); // HALTED
+
+        vm.prank(liquidator);
+        vm.expectRevert(Market.MarketHalted.selector);
+        market.liquidate(alice, 100e18);
+    }
+
+    function test_Liquidate_RevertsDuringResuming() public {
+        vm.startPrank(alice);
+        market.supply(10e18);
+        market.borrow(900e18);
+        vm.stopPrank();
+
+        vm.startPrank(owner);
+        oracle.pauseOracle();
+        controller.sync(); // OPEN -> HALTED
+        oracle.resumeOracle(90e18);
+        controller.sync(); // HALTED -> RESUMING (price already reflects the crash, alice IS liquidatable)
+        vm.stopPrank();
+
+        assertTrue(market.isLiquidatable(alice), "sanity: alice should already be liquidatable in RESUMING");
+
+        vm.prank(liquidator);
+        vm.expectRevert(Market.MarketHalted.selector);
+        market.liquidate(alice, 100e18); // must still revert -- BUILD.md: liquidations wait until fully OPEN
+    }
+
+    function test_Liquidate_CapsAtCloseFactor() public {
+        _makeAliceLiquidatable();
+
+        vm.prank(owner);
+        usdg.mint(liquidator, 10_000e18);
+        vm.startPrank(liquidator);
+        usdg.approve(address(market), type(uint256).max);
+        market.liquidate(alice, 10_000e18); // way more than 50% close factor allows
+        vm.stopPrank();
+
+        (, uint256 debt) = market.positions(alice);
+        assertEq(debt, 450e18, "repay should cap at 50% of the 900 debt, i.e. 450");
+    }
+
+    function test_SetLiquidationBonus_OnlyOwner() public {
+        vm.prank(alice);
+        vm.expectRevert();
+        market.setLiquidationBonus(0.1e18);
+
+        vm.prank(owner);
+        market.setLiquidationBonus(0.1e18);
+        assertEq(market.liquidationBonus(), 0.1e18);
+    }
 }

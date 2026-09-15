@@ -28,6 +28,10 @@ contract Market is Ownable {
     /// @notice 18-decimal fixed point, e.g. 0.5e18 = 50%.
     uint256 public maxLTV;
     uint256 public liquidationThreshold;
+    /// @notice Discount a liquidator receives on seized collateral, 18-decimal fixed point.
+    uint256 public liquidationBonus;
+    /// @notice Max fraction of a position's debt repayable in one liquidation call.
+    uint256 public constant CLOSE_FACTOR = 0.5e18;
 
     mapping(address => Position) public positions;
     uint256 public totalCollateral;
@@ -36,13 +40,16 @@ contract Market is Ownable {
     event Supplied(address indexed user, uint256 amount);
     event Borrowed(address indexed user, uint256 amount);
     event Repaid(address indexed user, uint256 amount);
+    event Liquidated(address indexed user, address indexed liquidator, uint256 debtRepaid, uint256 collateralSeized);
     event RiskParamsUpdated(uint256 maxLTV, uint256 liquidationThreshold);
+    event LiquidationBonusUpdated(uint256 newBonus);
 
     error MarketHalted();
     error ExceedsMaxLTV();
     error InsufficientCollateral();
     error ZeroAmount();
     error InvalidRiskParams();
+    error NotLiquidatable();
 
     modifier whenSupplyOrBorrowAllowed() {
         if (!haltController.canSupplyOrBorrow()) revert MarketHalted();
@@ -65,6 +72,7 @@ contract Market is Ownable {
         haltController = HaltController(haltController_);
         maxLTV = maxLTV_;
         liquidationThreshold = liquidationThreshold_;
+        liquidationBonus = 0.05e18; // 5% default
     }
 
     function setRiskParams(uint256 newMaxLTV, uint256 newLiquidationThreshold) external onlyOwner {
@@ -72,6 +80,11 @@ contract Market is Ownable {
         maxLTV = newMaxLTV;
         liquidationThreshold = newLiquidationThreshold;
         emit RiskParamsUpdated(newMaxLTV, newLiquidationThreshold);
+    }
+
+    function setLiquidationBonus(uint256 newBonus) external onlyOwner {
+        liquidationBonus = newBonus;
+        emit LiquidationBonusUpdated(newBonus);
     }
 
     /// @notice Seeds market liquidity for the demo. Standing in for a
@@ -111,6 +124,36 @@ contract Market is Ownable {
         totalDebt -= repayAmount;
         debtToken.safeTransferFrom(msg.sender, address(this), repayAmount);
         emit Repaid(msg.sender, repayAmount);
+    }
+
+    /// @notice Repays up to CLOSE_FACTOR of an undercollateralized position's
+    /// debt in exchange for seized collateral at a discount. Reverts while
+    /// halted or resuming -- BUILD.md §5: "liquidations wait until fully
+    /// OPEN, even during RESUMING," since a just-resumed price/solvency
+    /// state is exactly when liquidating is most dangerous.
+    function liquidate(address user, uint256 repayAmount) external {
+        if (!haltController.canLiquidate()) revert MarketHalted();
+        if (!isLiquidatable(user)) revert NotLiquidatable();
+
+        Position storage pos = positions[user];
+        uint256 maxRepay = (pos.debt * CLOSE_FACTOR) / 1e18;
+        uint256 actualRepay = repayAmount > maxRepay ? maxRepay : repayAmount;
+        if (actualRepay == 0) revert ZeroAmount();
+
+        (uint256 price,,) = oracle.latestPrice();
+        // Multiply before divide to avoid precision loss (equivalent to
+        // (actualRepay * 1e18 / price) * (1e18 + liquidationBonus) / 1e18).
+        uint256 collateralSeized = (actualRepay * (1e18 + liquidationBonus)) / price;
+        if (collateralSeized > pos.collateral) collateralSeized = pos.collateral;
+
+        pos.debt -= actualRepay;
+        pos.collateral -= collateralSeized;
+        totalDebt -= actualRepay;
+        totalCollateral -= collateralSeized;
+
+        debtToken.safeTransferFrom(msg.sender, address(this), actualRepay);
+        collateralToken.safeTransfer(msg.sender, collateralSeized);
+        emit Liquidated(user, msg.sender, actualRepay, collateralSeized);
     }
 
     function healthFactor(address user) external view returns (uint256) {
