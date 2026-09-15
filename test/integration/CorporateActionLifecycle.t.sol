@@ -152,11 +152,25 @@ contract CorporateActionLifecycleTest is Test {
         vm.expectRevert(); // keeper cannot force-resume, only owner can
         controller.forceResume("attempted keeper override");
 
+        // forceResume() only fixes HaltController's own bookkeeping -- it has
+        // no access to the oracle, which is a separate contract. If the oracle
+        // itself is still paused, Market's independent freshness check must
+        // still block trading regardless of what the controller now reports.
         vm.prank(owner);
-        controller.forceResume("oracle vendor outage confirmed safe to reopen manually");
+        controller.forceResume("controller bookkeeping stuck, oracle not yet independently verified");
         assertEq(uint8(controller.state()), uint8(HaltController.MarketState.OPEN));
 
         vm.prank(alice);
-        market.borrow(1e18); // market operates normally again immediately
+        vm.expectRevert(Market.OraclePausedDirectly.selector);
+        market.borrow(1e18);
+
+        // The correct procedure: fix the oracle itself. Once that's done,
+        // Market's independent check is satisfied and borrowing resumes --
+        // forceResume() was appropriately narrow, not a blanket bypass.
+        vm.prank(owner);
+        oracle.resumeOracle(500e18);
+
+        vm.prank(alice);
+        market.borrow(1e18);
     }
 }

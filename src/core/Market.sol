@@ -46,6 +46,13 @@ contract Market is Ownable, ReentrancyGuard {
     uint256 public liquidationBonus;
     /// @notice Max fraction of a position's debt repayable in one liquidation call.
     uint256 public constant CLOSE_FACTOR = 0.5e18;
+    /// @notice Max age (seconds) of the oracle's last update before borrow/
+    /// liquidate refuse to trust it -- independent of HaltController's state,
+    /// since that only updates when someone calls its permissionless sync().
+    /// If nobody calls sync() promptly after a real corporate-action pause,
+    /// HaltController could still report OPEN while the oracle itself is
+    /// paused or simply stale; this is Market's own defense-in-depth check.
+    uint256 public maxOracleStaleness;
 
     mapping(address => Position) public positions;
     uint256 public totalCollateral;
@@ -57,6 +64,7 @@ contract Market is Ownable, ReentrancyGuard {
     event Liquidated(address indexed user, address indexed liquidator, uint256 debtRepaid, uint256 collateralSeized);
     event RiskParamsUpdated(uint256 maxLTV, uint256 liquidationThreshold);
     event LiquidationBonusUpdated(uint256 newBonus);
+    event MaxOracleStalenessUpdated(uint256 newMaxStaleness);
 
     error MarketHalted();
     error ExceedsMaxLTV();
@@ -65,6 +73,8 @@ contract Market is Ownable, ReentrancyGuard {
     error InvalidRiskParams();
     error NotLiquidatable();
     error UnsupportedDecimals();
+    error OraclePausedDirectly();
+    error StaleOracle(uint256 lastUpdated, uint256 maxStaleness);
 
     modifier whenSupplyOrBorrowAllowed() {
         if (!haltController.canSupplyOrBorrow()) revert MarketHalted();
@@ -95,6 +105,7 @@ contract Market is Ownable, ReentrancyGuard {
         maxLTV = maxLTV_;
         liquidationThreshold = liquidationThreshold_;
         liquidationBonus = 0.05e18; // 5% default
+        maxOracleStaleness = 24 hours; // default -- equities don't need second-by-second freshness, but shouldn't be arbitrarily old either
     }
 
     function setRiskParams(uint256 newMaxLTV, uint256 newLiquidationThreshold) external onlyOwner {
@@ -107,6 +118,11 @@ contract Market is Ownable, ReentrancyGuard {
     function setLiquidationBonus(uint256 newBonus) external onlyOwner {
         liquidationBonus = newBonus;
         emit LiquidationBonusUpdated(newBonus);
+    }
+
+    function setMaxOracleStaleness(uint256 newMaxStaleness) external onlyOwner {
+        maxOracleStaleness = newMaxStaleness;
+        emit MaxOracleStalenessUpdated(newMaxStaleness);
     }
 
     /// @notice Seeds market liquidity for the demo. Standing in for a
@@ -125,6 +141,7 @@ contract Market is Ownable, ReentrancyGuard {
 
     function borrow(uint256 amount) external nonReentrant whenSupplyOrBorrowAllowed {
         if (amount == 0) revert ZeroAmount();
+        _requireFreshPrice();
         Position storage pos = positions[msg.sender];
         pos.debt += amount;
 
@@ -155,6 +172,10 @@ contract Market is Ownable, ReentrancyGuard {
     /// state is exactly when liquidating is most dangerous.
     function liquidate(address user, uint256 repayAmount) external nonReentrant {
         if (!haltController.canLiquidate()) revert MarketHalted();
+        // Checked before isLiquidatable() so a stale/paused oracle always
+        // surfaces as StaleOracle/OraclePausedDirectly, not a possibly-
+        // misleading NotLiquidatable computed from frozen data.
+        uint256 price = _requireFreshPrice();
         if (!isLiquidatable(user)) revert NotLiquidatable();
 
         Position storage pos = positions[user];
@@ -162,7 +183,6 @@ contract Market is Ownable, ReentrancyGuard {
         uint256 actualRepay = repayAmount > maxRepay ? maxRepay : repayAmount;
         if (actualRepay == 0) revert ZeroAmount();
 
-        (uint256 price,,) = oracle.latestPrice();
         uint256 actualRepayWad = _toWad(actualRepay, debtDecimals);
         // Multiply before divide to avoid precision loss.
         uint256 collateralSeizedWad = (actualRepayWad * (WAD + liquidationBonus)) / price;
@@ -206,6 +226,20 @@ contract Market is Ownable, ReentrancyGuard {
     function _maxBorrowableNative(uint256 collateralAmountNative) internal view returns (uint256) {
         uint256 maxBorrowWad = (_collateralValueWad(collateralAmountNative) * maxLTV) / WAD;
         return _fromWad(maxBorrowWad, debtDecimals);
+    }
+
+    /// @notice Independent freshness gate for borrow()/liquidate() -- does
+    /// NOT rely on HaltController's state, only on the oracle's own reported
+    /// paused flag and updatedAt timestamp. Deliberately not used by the
+    /// view functions (healthFactor, isSystemSolvent) so off-chain monitoring
+    /// or UI polling doesn't start reverting just because the oracle happens
+    /// to be paused at that moment.
+    function _requireFreshPrice() internal view returns (uint256 price) {
+        bool paused;
+        uint256 updatedAt;
+        (price, updatedAt, paused) = oracle.latestPrice();
+        if (paused) revert OraclePausedDirectly();
+        if (block.timestamp - updatedAt > maxOracleStaleness) revert StaleOracle(updatedAt, maxOracleStaleness);
     }
 
     /// @notice Oracle price is always an 18-decimal ratio -- "WAD debt-value
