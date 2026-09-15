@@ -1,0 +1,212 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.26;
+
+import {Test} from "forge-std/Test.sol";
+import {Market} from "../../src/core/Market.sol";
+import {HaltController} from "../../src/core/HaltController.sol";
+import {MockPausableOracle} from "../../src/oracle/MockPausableOracle.sol";
+import {MockWrappedXStock} from "../../src/tokens/MockWrappedXStock.sol";
+import {MockUSDG} from "../../src/tokens/MockUSDG.sol";
+
+contract MarketTest is Test {
+    Market market;
+    HaltController controller;
+    MockPausableOracle oracle;
+    MockWrappedXStock wNVDAx;
+    MockUSDG usdg;
+
+    address owner = address(0xA11CE);
+    address keeper = address(0xCAFE);
+    address alice = address(0xA11CE0);
+    address liquidator = address(0xD00D);
+
+    uint256 constant NVDA_PRICE = 180e18; // 1 wNVDAx = 180 USDG
+    uint256 constant MAX_LTV = 0.5e18; // 50%
+    uint256 constant LIQ_THRESHOLD = 0.55e18; // 55%
+
+    function setUp() public {
+        vm.startPrank(owner);
+        oracle = new MockPausableOracle(NVDA_PRICE, owner);
+        wNVDAx = new MockWrappedXStock(owner);
+        usdg = new MockUSDG(owner);
+        controller = new HaltController(address(oracle), owner, keeper);
+        market = new Market(
+            address(wNVDAx), address(usdg), address(oracle), address(controller), owner, MAX_LTV, LIQ_THRESHOLD
+        );
+
+        // Seed market liquidity.
+        usdg.mint(owner, 100_000e18);
+        usdg.approve(address(market), type(uint256).max);
+        market.fundMarket(100_000e18);
+
+        // Seed alice with collateral.
+        wNVDAx.mint(alice, 100e18);
+        vm.stopPrank();
+
+        vm.prank(alice);
+        wNVDAx.approve(address(market), type(uint256).max);
+        vm.prank(alice);
+        usdg.approve(address(market), type(uint256).max);
+    }
+
+    function test_Supply() public {
+        vm.prank(alice);
+        market.supply(10e18);
+
+        (uint256 collateral,) = market.positions(alice);
+        assertEq(collateral, 10e18);
+        assertEq(market.totalCollateral(), 10e18);
+        assertEq(wNVDAx.balanceOf(address(market)), 10e18);
+    }
+
+    function test_Borrow_WithinLTV() public {
+        vm.startPrank(alice);
+        market.supply(10e18); // 10 * 180 = 1800 USDG collateral value
+        market.borrow(800e18); // well within 50% of 1800 = 900
+        vm.stopPrank();
+
+        (, uint256 debt) = market.positions(alice);
+        assertEq(debt, 800e18);
+        assertEq(usdg.balanceOf(alice), 800e18);
+    }
+
+    function test_Borrow_RevertsAboveMaxLTV() public {
+        vm.startPrank(alice);
+        market.supply(10e18); // collateral value 1800, max borrow = 900
+        vm.expectRevert(Market.ExceedsMaxLTV.selector);
+        market.borrow(901e18);
+        vm.stopPrank();
+    }
+
+    function test_Borrow_ExactlyAtMaxLTV_Succeeds() public {
+        vm.startPrank(alice);
+        market.supply(10e18);
+        market.borrow(900e18); // exactly 50% of 1800
+        vm.stopPrank();
+
+        (, uint256 debt) = market.positions(alice);
+        assertEq(debt, 900e18);
+    }
+
+    function test_Repay_ReducesDebt() public {
+        vm.startPrank(alice);
+        market.supply(10e18);
+        market.borrow(800e18);
+        market.repay(300e18);
+        vm.stopPrank();
+
+        (, uint256 debt) = market.positions(alice);
+        assertEq(debt, 500e18);
+        assertEq(market.totalDebt(), 500e18);
+    }
+
+    function test_Repay_CapsAtOutstandingDebt() public {
+        vm.startPrank(alice);
+        market.supply(10e18);
+        market.borrow(800e18);
+        deal(address(usdg), alice, 10_000e18); // give alice more than her debt to attempt overpay
+        market.repay(5_000e18);
+        vm.stopPrank();
+
+        (, uint256 debt) = market.positions(alice);
+        assertEq(debt, 0, "repay should cap at outstanding debt, not underflow");
+    }
+
+    function test_SupplyAndBorrow_BlockedWhenHalted() public {
+        vm.prank(owner);
+        oracle.pauseOracle();
+        controller.sync();
+
+        vm.startPrank(alice);
+        vm.expectRevert(Market.MarketHalted.selector);
+        market.supply(1e18);
+
+        vm.expectRevert(Market.MarketHalted.selector);
+        market.borrow(1e18);
+        vm.stopPrank();
+    }
+
+    function test_Repay_AlwaysAllowed_EvenWhenHalted() public {
+        vm.startPrank(alice);
+        market.supply(10e18);
+        market.borrow(500e18);
+        vm.stopPrank();
+
+        vm.prank(owner);
+        oracle.pauseOracle();
+        controller.sync();
+
+        vm.prank(alice);
+        market.repay(200e18); // must not revert
+
+        (, uint256 debt) = market.positions(alice);
+        assertEq(debt, 300e18);
+    }
+
+    function test_HealthFactor_NoDebt_IsMax() public {
+        vm.prank(alice);
+        market.supply(10e18);
+        assertEq(market.healthFactor(alice), type(uint256).max);
+    }
+
+    function test_HealthFactor_AboveOne_WhenSafe() public {
+        vm.startPrank(alice);
+        market.supply(10e18); // value 1800, liq threshold value = 990
+        market.borrow(500e18);
+        vm.stopPrank();
+
+        // 990 / 500 = 1.98
+        assertApproxEqAbs(market.healthFactor(alice), 1.98e18, 0.01e18);
+        assertFalse(market.isLiquidatable(alice));
+    }
+
+    function test_IsLiquidatable_TrueWhenPriceDrops() public {
+        vm.startPrank(alice);
+        market.supply(10e18); // value 1800 @ 180/share
+        market.borrow(900e18); // at exactly maxLTV (50%), still under liq threshold (55% = 990)
+        vm.stopPrank();
+
+        assertFalse(market.isLiquidatable(alice));
+
+        // Price crashes post-resume (e.g. bad earnings priced in).
+        vm.startPrank(owner);
+        oracle.pauseOracle();
+        oracle.resumeOracle(90e18); // halves in value -> collateral value now 900
+        vm.stopPrank();
+
+        // liq threshold value = 900 * 0.55 = 495 < 900 debt
+        assertTrue(market.isLiquidatable(alice));
+    }
+
+    function test_IsSystemSolvent() public {
+        vm.startPrank(alice);
+        market.supply(10e18);
+        market.borrow(500e18);
+        vm.stopPrank();
+
+        assertTrue(market.isSystemSolvent());
+
+        vm.startPrank(owner);
+        oracle.pauseOracle();
+        oracle.resumeOracle(1e18); // catastrophic price drop
+        vm.stopPrank();
+
+        assertFalse(market.isSystemSolvent());
+    }
+
+    function test_SetRiskParams_OnlyOwner() public {
+        vm.prank(alice);
+        vm.expectRevert();
+        market.setRiskParams(0.4e18, 0.45e18);
+
+        vm.prank(owner);
+        market.setRiskParams(0.4e18, 0.45e18);
+        assertEq(market.maxLTV(), 0.4e18);
+        assertEq(market.liquidationThreshold(), 0.45e18);
+    }
+
+    function test_Constructor_RevertsIfLiqThresholdNotAboveLTV() public {
+        vm.expectRevert(Market.InvalidRiskParams.selector);
+        new Market(address(wNVDAx), address(usdg), address(oracle), address(controller), owner, 0.5e18, 0.5e18);
+    }
+}
