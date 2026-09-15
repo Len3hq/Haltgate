@@ -1,0 +1,10 @@
+# Foundry build artifacts
+cache/
+out/
+
+# Local anvil-chain deployment records (chain 31337) -- not meaningful to keep.
+# Real network deployment records (e.g. X Layer testnet, chain 1952) should be committed.
+broadcast/*/31337/
+
+# Environment / secrets
+.env
