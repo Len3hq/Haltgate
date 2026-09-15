@@ -33,7 +33,7 @@ contract CorporateActionLifecycleTest is Test {
         vm.startPrank(owner);
         oracle = new MockPausableOracle(PRE_CA_PRICE, owner);
         wNVDAx = new MockWrappedXStock(owner);
-        usdg = new MockUSDG(owner);
+        usdg = new MockUSDG(owner, 18);
         controller = new HaltController(address(oracle), owner, keeper);
         market = new Market(
             address(wNVDAx), address(usdg), address(oracle), address(controller), owner, MAX_LTV, LIQ_THRESHOLD

@@ -71,8 +71,9 @@ contract MockWrappedXStockTest is Test {
         token.mint(holder, 10e18);
 
         vm.prank(holder);
-        token.transfer(stranger, 4e18);
+        bool ok = token.transfer(stranger, 4e18);
 
+        assertTrue(ok);
         assertEq(token.balanceOf(holder), 6e18);
         assertEq(token.balanceOf(stranger), 4e18);
     }
