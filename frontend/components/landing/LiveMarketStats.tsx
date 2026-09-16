@@ -4,7 +4,6 @@ import { useEffect, useRef, useState } from "react";
 import {
   useReadIPausableOracleLatestPrice,
   useReadMarketTotalCollateral,
-  useReadMarketTotalDebt,
   useReadHaltControllerState,
 } from "@/lib/generated";
 import { CONTRACTS, WNVDAX_DECIMALS } from "@/lib/contracts";
@@ -17,7 +16,6 @@ const STATE_LABEL = ["Open", "Halting", "Halted", "Resuming"] as const;
 export function LiveMarketStats() {
   const { data: priceData } = useReadIPausableOracleLatestPrice({ address: CONTRACTS.oracle, query: { refetchInterval: 10_000 } });
   const { data: totalCollateral } = useReadMarketTotalCollateral({ address: CONTRACTS.market, query: { refetchInterval: 10_000 } });
-  const { data: totalDebt } = useReadMarketTotalDebt({ address: CONTRACTS.market, query: { refetchInterval: 10_000 } });
   const { data: haltState } = useReadHaltControllerState({ address: CONTRACTS.haltController, query: { refetchInterval: 10_000 } });
 
   const price = priceData?.[0];

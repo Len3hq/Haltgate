@@ -4,6 +4,8 @@ pragma solidity ^0.8.26;
 import {Test} from "forge-std/Test.sol";
 import {Market} from "../../src/core/Market.sol";
 import {HaltController} from "../../src/core/HaltController.sol";
+import {LenderVault} from "../../src/core/LenderVault.sol";
+import {InterestRateModel} from "../../src/core/InterestRateModel.sol";
 import {MockPausableOracle} from "../../src/oracle/MockPausableOracle.sol";
 import {MockWrappedXStock} from "../../src/tokens/MockWrappedXStock.sol";
 import {MockUSDG} from "../../src/tokens/MockUSDG.sol";
@@ -11,6 +13,8 @@ import {MockUSDG} from "../../src/tokens/MockUSDG.sol";
 contract MarketTest is Test {
     Market market;
     HaltController controller;
+    LenderVault vault;
+    InterestRateModel irm;
     MockPausableOracle oracle;
     MockWrappedXStock wNVDAx;
     MockUSDG usdg;
@@ -30,14 +34,26 @@ contract MarketTest is Test {
         wNVDAx = new MockWrappedXStock(owner);
         usdg = new MockUSDG(owner, 18);
         controller = new HaltController(address(oracle), owner, keeper);
+        vault = new LenderVault(address(usdg), owner);
+        irm = new InterestRateModel(0, 0.1e18, 3.0e18, 0.8e18, owner);
         market = new Market(
-            address(wNVDAx), address(usdg), address(oracle), address(controller), owner, MAX_LTV, LIQ_THRESHOLD
+            address(wNVDAx),
+            address(usdg),
+            address(oracle),
+            address(controller),
+            address(vault),
+            address(irm),
+            owner,
+            MAX_LTV,
+            LIQ_THRESHOLD,
+            0 // reserveFactor -- 0 by default, dedicated tests cover nonzero
         );
+        vault.setMarket(address(market));
 
-        // Seed market liquidity.
+        // Seed vault liquidity via a normal LP deposit.
         usdg.mint(owner, 100_000e18);
-        usdg.approve(address(market), type(uint256).max);
-        market.fundMarket(100_000e18);
+        usdg.approve(address(vault), type(uint256).max);
+        vault.deposit(100_000e18, owner);
 
         // Seed alice with collateral.
         wNVDAx.mint(alice, 100e18);
@@ -49,29 +65,29 @@ contract MarketTest is Test {
         usdg.approve(address(market), type(uint256).max);
     }
 
-    function test_FundMarket_PermissionlessAnyoneCanAddLiquidity() public {
-        // Caught in live testnet testing: fundMarket() had inherited
-        // Ownable's onlyOwner by default, meaning routine liquidity
-        // provisioning would have had to go through governance every time.
-        // Fixed at the source; this proves a non-owner can now fund it.
+    function test_VaultDeposit_PermissionlessAnyoneCanAddLiquidity() public {
+        // Standing in for the old custom fundMarket() access-control test:
+        // ERC4626.deposit() is permissionless by the standard itself, no
+        // custom guard needed -- this just confirms a non-owner can use it.
         vm.prank(owner);
         usdg.mint(alice, 1_000e18);
         vm.prank(alice);
-        usdg.approve(address(market), 1_000e18);
+        usdg.approve(address(vault), 1_000e18);
 
-        uint256 balanceBefore = market.totalCollateral(); // sanity, unrelated to debt token balance
+        uint256 collateralBefore = market.totalCollateral(); // sanity, unrelated to debt token balance
         vm.prank(alice);
-        market.fundMarket(1_000e18);
+        uint256 shares = vault.deposit(1_000e18, alice);
 
-        assertEq(usdg.balanceOf(address(market)), 100_000e18 + 1_000e18, "market's USDG balance should include alice's deposit");
-        assertEq(market.totalCollateral(), balanceBefore, "fundMarket must not affect collateral accounting");
+        assertGt(shares, 0, "alice should receive vault shares for her deposit");
+        assertEq(usdg.balanceOf(address(vault)), 100_000e18 + 1_000e18, "vault's USDG balance should include alice's deposit");
+        assertEq(market.totalCollateral(), collateralBefore, "vault deposits must not affect Market's collateral accounting");
     }
 
     function test_Supply() public {
         vm.prank(alice);
         market.supply(10e18);
 
-        (uint256 collateral,) = market.positions(alice);
+        (uint256 collateral,) = market.getPosition(alice);
         assertEq(collateral, 10e18);
         assertEq(market.totalCollateral(), 10e18);
         assertEq(wNVDAx.balanceOf(address(market)), 10e18);
@@ -83,7 +99,7 @@ contract MarketTest is Test {
         market.withdraw(10e18);
         vm.stopPrank();
 
-        (uint256 collateral,) = market.positions(alice);
+        (uint256 collateral,) = market.getPosition(alice);
         assertEq(collateral, 0);
         assertEq(market.totalCollateral(), 0);
         assertEq(wNVDAx.balanceOf(alice), 100e18, "alice should have all her wNVDAx back");
@@ -109,7 +125,7 @@ contract MarketTest is Test {
         vm.prank(alice);
         market.withdraw(10e18); // must not revert -- no debt, no risk to protect
 
-        (uint256 collateral,) = market.positions(alice);
+        (uint256 collateral,) = market.getPosition(alice);
         assertEq(collateral, 0);
     }
 
@@ -120,7 +136,7 @@ contract MarketTest is Test {
         market.withdraw(2e18); // remaining 8e18 * 180 = 1440, still covers 500 debt at 50% LTV (max 720)
         vm.stopPrank();
 
-        (uint256 collateral,) = market.positions(alice);
+        (uint256 collateral,) = market.getPosition(alice);
         assertEq(collateral, 8e18);
     }
 
@@ -154,7 +170,7 @@ contract MarketTest is Test {
         market.borrow(800e18); // well within 50% of 1800 = 900
         vm.stopPrank();
 
-        (, uint256 debt) = market.positions(alice);
+        (, uint256 debt) = market.getPosition(alice);
         assertEq(debt, 800e18);
         assertEq(usdg.balanceOf(alice), 800e18);
     }
@@ -173,7 +189,7 @@ contract MarketTest is Test {
         market.borrow(900e18); // exactly 50% of 1800
         vm.stopPrank();
 
-        (, uint256 debt) = market.positions(alice);
+        (, uint256 debt) = market.getPosition(alice);
         assertEq(debt, 900e18);
     }
 
@@ -184,9 +200,9 @@ contract MarketTest is Test {
         market.repay(300e18);
         vm.stopPrank();
 
-        (, uint256 debt) = market.positions(alice);
+        (, uint256 debt) = market.getPosition(alice);
         assertEq(debt, 500e18);
-        assertEq(market.totalDebt(), 500e18);
+        assertEq(market.totalBorrows(), 500e18);
     }
 
     function test_Repay_CapsAtOutstandingDebt() public {
@@ -197,7 +213,7 @@ contract MarketTest is Test {
         market.repay(5_000e18);
         vm.stopPrank();
 
-        (, uint256 debt) = market.positions(alice);
+        (, uint256 debt) = market.getPosition(alice);
         assertEq(debt, 0, "repay should cap at outstanding debt, not underflow");
     }
 
@@ -228,7 +244,7 @@ contract MarketTest is Test {
         vm.prank(alice);
         market.repay(200e18); // must not revert
 
-        (, uint256 debt) = market.positions(alice);
+        (, uint256 debt) = market.getPosition(alice);
         assertEq(debt, 300e18);
     }
 
@@ -296,7 +312,9 @@ contract MarketTest is Test {
 
     function test_Constructor_RevertsIfLiqThresholdNotAboveLTV() public {
         vm.expectRevert(Market.InvalidRiskParams.selector);
-        new Market(address(wNVDAx), address(usdg), address(oracle), address(controller), owner, 0.5e18, 0.5e18);
+        new Market(
+            address(wNVDAx), address(usdg), address(oracle), address(controller), address(vault), address(irm), owner, 0.5e18, 0.5e18, 0
+        );
     }
 
     // --- Liquidation ---
@@ -328,7 +346,7 @@ contract MarketTest is Test {
         market.liquidate(alice, 100e18);
         vm.stopPrank();
 
-        (uint256 collateral, uint256 debt) = market.positions(alice);
+        (uint256 collateral, uint256 debt) = market.getPosition(alice);
         assertEq(debt, 800e18, "debt should drop by exactly the repaid amount");
 
         // collateral seized = (100 / 90) * 1.05 = 1.1666...e18
@@ -397,7 +415,7 @@ contract MarketTest is Test {
         market.liquidate(alice, 10_000e18); // way more than 50% close factor allows
         vm.stopPrank();
 
-        (, uint256 debt) = market.positions(alice);
+        (, uint256 debt) = market.getPosition(alice);
         assertEq(debt, 450e18, "repay should cap at 50% of the 900 debt, i.e. 450");
     }
 

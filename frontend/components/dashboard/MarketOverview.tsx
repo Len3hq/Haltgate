@@ -1,14 +1,19 @@
 "use client";
 
+import { useReadContract } from "wagmi";
+import { erc20Abi } from "viem";
 import {
   useReadIPausableOracleLatestPrice,
   useReadMarketTotalCollateral,
-  useReadMarketTotalDebt,
+  useReadMarketTotalBorrows,
   useReadMarketMaxLtv,
   useReadMarketLiquidationThreshold,
+  useReadMarketReserveFactor,
+  useReadInterestRateModelGetBorrowRatePerSecond,
+  useReadInterestRateModelGetSupplyRatePerSecond,
 } from "@/lib/generated";
 import { CONTRACTS, USDG_DECIMALS, WNVDAX_DECIMALS } from "@/lib/contracts";
-import { formatAmount, formatBps, formatPrice } from "@/lib/format";
+import { formatAmount, formatApr, formatBps, formatPrice } from "@/lib/format";
 
 function StatCard({ label, value, sublabel }: { label: string; value: string; sublabel?: string }) {
   return (
@@ -36,29 +41,58 @@ export function MarketOverview() {
     address: CONTRACTS.market,
     query: { refetchInterval: 10_000 },
   });
-  const { data: totalDebt } = useReadMarketTotalDebt({
+  const { data: totalBorrows } = useReadMarketTotalBorrows({
     address: CONTRACTS.market,
     query: { refetchInterval: 10_000 },
   });
   const { data: maxLtv } = useReadMarketMaxLtv({ address: CONTRACTS.market });
   const { data: liquidationThreshold } = useReadMarketLiquidationThreshold({ address: CONTRACTS.market });
+  const { data: reserveFactor } = useReadMarketReserveFactor({ address: CONTRACTS.market });
+
+  // Money-market utilization (cash vs. borrows) -- what the interest rate
+  // curve actually responds to. Distinct from the loan-to-value style
+  // "debt vs. collateral value" figure computed below.
+  const { data: vaultCash } = useReadContract({
+    address: CONTRACTS.usdg,
+    abi: erc20Abi,
+    functionName: "balanceOf",
+    args: [CONTRACTS.lenderVault],
+    query: { refetchInterval: 10_000 },
+  });
+
+  const { data: borrowRate } = useReadInterestRateModelGetBorrowRatePerSecond({
+    address: CONTRACTS.interestRateModel,
+    args: vaultCash !== undefined && totalBorrows !== undefined ? [vaultCash, totalBorrows] : undefined,
+    query: { enabled: vaultCash !== undefined && totalBorrows !== undefined, refetchInterval: 10_000 },
+  });
+  const { data: supplyRate } = useReadInterestRateModelGetSupplyRatePerSecond({
+    address: CONTRACTS.interestRateModel,
+    args:
+      vaultCash !== undefined && totalBorrows !== undefined && reserveFactor !== undefined
+        ? [vaultCash, totalBorrows, reserveFactor]
+        : undefined,
+    query: { enabled: vaultCash !== undefined && totalBorrows !== undefined && reserveFactor !== undefined, refetchInterval: 10_000 },
+  });
 
   const price = priceData?.[0];
 
-  let utilization: bigint | undefined;
-  if (price !== undefined && totalCollateral !== undefined && totalDebt !== undefined) {
+  let collateralUtilization: bigint | undefined;
+  if (price !== undefined && totalCollateral !== undefined && totalBorrows !== undefined) {
     const collateralValueWad = (toWad(totalCollateral, WNVDAX_DECIMALS) * price) / 10n ** 18n;
-    const debtWad = toWad(totalDebt, USDG_DECIMALS);
-    utilization = collateralValueWad === 0n ? 0n : (debtWad * 10n ** 18n) / collateralValueWad;
+    const debtWad = toWad(totalBorrows, USDG_DECIMALS);
+    collateralUtilization = collateralValueWad === 0n ? 0n : (debtWad * 10n ** 18n) / collateralValueWad;
   }
 
   return (
-    <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+    <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
       <StatCard label="wNVDAx Price" value={`$${formatPrice(price)}`} sublabel="USDG" />
-      <StatCard label="Total Supplied" value={formatAmount(totalCollateral, WNVDAX_DECIMALS)} sublabel="wNVDAx" />
-      <StatCard label="Total Borrowed" value={formatAmount(totalDebt, USDG_DECIMALS)} sublabel="USDG" />
-      <StatCard label="Utilization" value={formatBps(utilization)} sublabel="Debt / collateral value" />
-      <StatCard label="Max LTV" value={formatBps(maxLtv)} sublabel={`Liq. threshold ${formatBps(liquidationThreshold)}`} />
+      <StatCard label="Total Supplied" value={formatAmount(totalCollateral, WNVDAX_DECIMALS)} sublabel="wNVDAx collateral" />
+      <StatCard label="Total Borrowed" value={formatAmount(totalBorrows, USDG_DECIMALS)} sublabel="USDG, interest-inclusive" />
+      <StatCard label="Debt / Collateral" value={formatBps(collateralUtilization)} sublabel={`Max LTV ${formatBps(maxLtv)}`} />
+      <StatCard label="Supply APR" value={formatApr(supplyRate)} sublabel="Earned by LenderVault deposits" />
+      <StatCard label="Borrow APR" value={formatApr(borrowRate)} sublabel="Paid by borrowers" />
+      <StatCard label="Liq. Threshold" value={formatBps(liquidationThreshold)} sublabel="Position closes above this" />
+      <StatCard label="Reserve Factor" value={formatBps(reserveFactor)} sublabel="Protocol's cut of interest" />
     </div>
   );
 }

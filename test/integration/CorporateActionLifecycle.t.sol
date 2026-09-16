@@ -4,6 +4,8 @@ pragma solidity ^0.8.26;
 import {Test} from "forge-std/Test.sol";
 import {Market} from "../../src/core/Market.sol";
 import {HaltController} from "../../src/core/HaltController.sol";
+import {LenderVault} from "../../src/core/LenderVault.sol";
+import {InterestRateModel} from "../../src/core/InterestRateModel.sol";
 import {MockPausableOracle} from "../../src/oracle/MockPausableOracle.sol";
 import {MockWrappedXStock} from "../../src/tokens/MockWrappedXStock.sol";
 import {MockUSDG} from "../../src/tokens/MockUSDG.sol";
@@ -15,6 +17,8 @@ import {MockUSDG} from "../../src/tokens/MockUSDG.sol";
 contract CorporateActionLifecycleTest is Test {
     Market market;
     HaltController controller;
+    LenderVault vault;
+    InterestRateModel irm;
     MockPausableOracle oracle;
     MockWrappedXStock wNVDAx;
     MockUSDG usdg;
@@ -35,13 +39,25 @@ contract CorporateActionLifecycleTest is Test {
         wNVDAx = new MockWrappedXStock(owner);
         usdg = new MockUSDG(owner, 18);
         controller = new HaltController(address(oracle), owner, keeper);
+        vault = new LenderVault(address(usdg), owner);
+        irm = new InterestRateModel(0, 0.1e18, 3.0e18, 0.8e18, owner);
         market = new Market(
-            address(wNVDAx), address(usdg), address(oracle), address(controller), owner, MAX_LTV, LIQ_THRESHOLD
+            address(wNVDAx),
+            address(usdg),
+            address(oracle),
+            address(controller),
+            address(vault),
+            address(irm),
+            owner,
+            MAX_LTV,
+            LIQ_THRESHOLD,
+            0
         );
+        vault.setMarket(address(market));
 
         usdg.mint(owner, 1_000_000e18);
-        usdg.approve(address(market), type(uint256).max);
-        market.fundMarket(1_000_000e18);
+        usdg.approve(address(vault), type(uint256).max);
+        vault.deposit(1_000_000e18, owner);
 
         wNVDAx.mint(alice, 100e18);
         wNVDAx.mint(bob, 100e18);
@@ -94,7 +110,7 @@ contract CorporateActionLifecycleTest is Test {
         // Repay still works during the pre-warn window -- risk reduction is never blocked.
         vm.prank(bob);
         market.repay(50e18);
-        (, uint256 bobDebt) = market.positions(bob);
+        (, uint256 bobDebt) = market.getPosition(bob);
         assertEq(bobDebt, 250e18);
 
         // --- CA activates: oracle actually pauses ---
@@ -130,12 +146,12 @@ contract CorporateActionLifecycleTest is Test {
         // --- Post-resume: liquidation now succeeds, normal operation resumes for everyone else ---
         vm.prank(liquidator);
         market.liquidate(alice, 100e18);
-        (, uint256 aliceDebtAfter) = market.positions(alice);
+        (, uint256 aliceDebtAfter) = market.getPosition(alice);
         assertEq(aliceDebtAfter, 800e18);
 
         vm.prank(bob);
         market.borrow(50e18); // bob can operate normally again
-        (, uint256 bobDebtAfter) = market.positions(bob);
+        (, uint256 bobDebtAfter) = market.getPosition(bob);
         assertEq(bobDebtAfter, 300e18);
     }
 

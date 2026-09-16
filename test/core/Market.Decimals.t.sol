@@ -4,6 +4,8 @@ pragma solidity ^0.8.26;
 import {Test} from "forge-std/Test.sol";
 import {Market} from "../../src/core/Market.sol";
 import {HaltController} from "../../src/core/HaltController.sol";
+import {LenderVault} from "../../src/core/LenderVault.sol";
+import {InterestRateModel} from "../../src/core/InterestRateModel.sol";
 import {MockPausableOracle} from "../../src/oracle/MockPausableOracle.sol";
 import {MockWrappedXStock} from "../../src/tokens/MockWrappedXStock.sol";
 import {MockUSDG} from "../../src/tokens/MockUSDG.sol";
@@ -17,6 +19,8 @@ import {MockUSDG} from "../../src/tokens/MockUSDG.sol";
 contract MarketDecimalsTest is Test {
     Market market;
     HaltController controller;
+    LenderVault vault;
+    InterestRateModel irm;
     MockPausableOracle oracle;
     MockWrappedXStock wNVDAx; // 18 decimals
     MockUSDG usdg; // 6 decimals -- matches real USDG
@@ -37,13 +41,25 @@ contract MarketDecimalsTest is Test {
         wNVDAx = new MockWrappedXStock(owner);
         usdg = new MockUSDG(owner, USDG_DECIMALS);
         controller = new HaltController(address(oracle), owner, keeper);
+        vault = new LenderVault(address(usdg), owner);
+        irm = new InterestRateModel(0, 0.1e18, 3.0e18, 0.8e18, owner);
         market = new Market(
-            address(wNVDAx), address(usdg), address(oracle), address(controller), owner, MAX_LTV, LIQ_THRESHOLD
+            address(wNVDAx),
+            address(usdg),
+            address(oracle),
+            address(controller),
+            address(vault),
+            address(irm),
+            owner,
+            MAX_LTV,
+            LIQ_THRESHOLD,
+            0
         );
+        vault.setMarket(address(market));
 
         usdg.mint(owner, 100_000 * 10 ** USDG_DECIMALS);
-        usdg.approve(address(market), type(uint256).max);
-        market.fundMarket(100_000 * 10 ** USDG_DECIMALS);
+        usdg.approve(address(vault), type(uint256).max);
+        vault.deposit(100_000 * 10 ** USDG_DECIMALS, owner);
 
         wNVDAx.mint(alice, 100e18);
         vm.stopPrank();
@@ -71,7 +87,7 @@ contract MarketDecimalsTest is Test {
         market.borrow(800 * 10 ** USDG_DECIMALS); // 800 USDG in its real 6-decimal units
         vm.stopPrank();
 
-        (, uint256 debt) = market.positions(alice);
+        (, uint256 debt) = market.getPosition(alice);
         assertEq(debt, 800 * 10 ** USDG_DECIMALS);
         assertEq(usdg.balanceOf(alice), 800 * 10 ** USDG_DECIMALS, "alice must receive real 6-decimal USDG units");
     }
@@ -90,7 +106,7 @@ contract MarketDecimalsTest is Test {
         market.borrow(900 * 10 ** USDG_DECIMALS); // exactly 50% of 1800
         vm.stopPrank();
 
-        (, uint256 debt) = market.positions(alice);
+        (, uint256 debt) = market.getPosition(alice);
         assertEq(debt, 900 * 10 ** USDG_DECIMALS);
     }
 
@@ -126,7 +142,7 @@ contract MarketDecimalsTest is Test {
         vm.prank(liquidator);
         market.liquidate(alice, repayAmount);
 
-        (uint256 collateral, uint256 debt) = market.positions(alice);
+        (uint256 collateral, uint256 debt) = market.getPosition(alice);
         assertEq(debt, 800 * 10 ** USDG_DECIMALS, "debt should drop by exactly the repaid 6-decimal amount");
 
         // Same seizure math as the 18-decimal suite: (100/90) * 1.05 ~= 1.1666e18 wNVDAx
@@ -162,7 +178,7 @@ contract MarketDecimalsTest is Test {
         market.repay(5_000 * 10 ** USDG_DECIMALS); // way more than owed
         vm.stopPrank();
 
-        (, uint256 debt) = market.positions(alice);
+        (, uint256 debt) = market.getPosition(alice);
         assertEq(debt, 0, "repay should cap at outstanding debt, not underflow, regardless of decimals");
     }
 }

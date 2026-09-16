@@ -6,6 +6,8 @@ import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {Market} from "../../src/core/Market.sol";
 import {HaltController} from "../../src/core/HaltController.sol";
+import {LenderVault} from "../../src/core/LenderVault.sol";
+import {InterestRateModel} from "../../src/core/InterestRateModel.sol";
 import {MockPausableOracle} from "../../src/oracle/MockPausableOracle.sol";
 import {MockWrappedXStock} from "../../src/tokens/MockWrappedXStock.sol";
 
@@ -48,6 +50,8 @@ contract MaliciousReentrantToken is ERC20 {
 contract MarketReentrancyTest is Test {
     Market market;
     HaltController controller;
+    LenderVault vault;
+    InterestRateModel irm;
     MockPausableOracle oracle;
     MockWrappedXStock wNVDAx;
     MaliciousReentrantToken evilUsdg;
@@ -62,11 +66,16 @@ contract MarketReentrancyTest is Test {
         wNVDAx = new MockWrappedXStock(owner);
         evilUsdg = new MaliciousReentrantToken();
         controller = new HaltController(address(oracle), owner, keeper);
-        market = new Market(address(wNVDAx), address(evilUsdg), address(oracle), address(controller), owner, 0.5e18, 0.55e18);
+        vault = new LenderVault(address(evilUsdg), owner);
+        irm = new InterestRateModel(0, 0.1e18, 3.0e18, 0.8e18, owner);
+        market = new Market(
+            address(wNVDAx), address(evilUsdg), address(oracle), address(controller), address(vault), address(irm), owner, 0.5e18, 0.55e18, 0
+        );
+        vault.setMarket(address(market));
         evilUsdg.setTarget(market);
 
-        evilUsdg.approve(address(market), type(uint256).max);
-        market.fundMarket(100_000e18);
+        evilUsdg.approve(address(vault), type(uint256).max);
+        vault.deposit(100_000e18, owner);
 
         wNVDAx.mint(attacker, 100e18);
         vm.stopPrank();
@@ -93,7 +102,7 @@ contract MarketReentrancyTest is Test {
         market.borrow(800e18);
         vm.stopPrank();
 
-        (, uint256 debt) = market.positions(attacker);
+        (, uint256 debt) = market.getPosition(attacker);
         assertEq(debt, 800e18);
     }
 }

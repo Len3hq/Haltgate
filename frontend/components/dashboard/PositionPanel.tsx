@@ -1,7 +1,7 @@
 "use client";
 
 import { useAccount } from "wagmi";
-import { useReadMarketPositions, useReadMarketHealthFactor } from "@/lib/generated";
+import { useReadMarketGetPosition, useReadMarketHealthFactor } from "@/lib/generated";
 import { CONTRACTS, USDG_DECIMALS, WNVDAX_DECIMALS } from "@/lib/contracts";
 import { formatAmount } from "@/lib/format";
 import { HealthGauge } from "./HealthGauge";
@@ -9,7 +9,7 @@ import { HealthGauge } from "./HealthGauge";
 export function PositionPanel() {
   const { address, isConnected } = useAccount();
 
-  const { data: position } = useReadMarketPositions({
+  const { data: position } = useReadMarketGetPosition({
     address: CONTRACTS.market,
     args: address ? [address] : undefined,
     query: { enabled: !!address, refetchInterval: 8_000 },

@@ -8,6 +8,8 @@ import {MockWrappedXStock} from "../src/tokens/MockWrappedXStock.sol";
 import {MockUSDG} from "../src/tokens/MockUSDG.sol";
 import {HaltController} from "../src/core/HaltController.sol";
 import {Market} from "../src/core/Market.sol";
+import {LenderVault} from "../src/core/LenderVault.sol";
+import {InterestRateModel} from "../src/core/InterestRateModel.sol";
 import {Multisig} from "../src/governance/Multisig.sol";
 
 /// @notice Deploys the full HaltGate stack, including governance.
@@ -47,9 +49,18 @@ contract Deploy is Script {
     uint256 constant INITIAL_PRICE = 180e18; // placeholder wNVDAx/USDG price -- confirm real price before any mainnet use
     uint256 constant MAX_LTV = 0.5e18;
     uint256 constant LIQ_THRESHOLD = 0.55e18;
+    uint256 constant RESERVE_FACTOR = 0.1e18; // 10% of interest kept as protocol reserves
     uint8 constant MOCK_USDG_DECIMALS = 6; // matches real USDG, confirmed on-chain
     uint256 constant MARKET_SEED_LIQUIDITY = 100_000 * 10 ** MOCK_USDG_DECIMALS;
     uint256 constant DEMO_COLLATERAL_MINT = 100e18;
+
+    // Kinked-rate defaults (Compound/Aave-standard shape): 0% base, rising to
+    // 8% APY at 80% utilization (the kink), then steeply to 68% APY at 100%
+    // utilization -- pulls utilization back down hard once liquidity gets tight.
+    uint256 constant IRM_BASE_RATE_PER_YEAR = 0;
+    uint256 constant IRM_MULTIPLIER_PER_YEAR = 0.1e18;
+    uint256 constant IRM_JUMP_MULTIPLIER_PER_YEAR = 3.0e18;
+    uint256 constant IRM_KINK = 0.8e18;
 
     struct Deployment {
         address deployer;
@@ -59,6 +70,8 @@ contract Deploy is Script {
         address usdg;
         bool usingMockUsdg;
         address controller;
+        address lenderVault;
+        address interestRateModel;
         address market;
         address multisig;
         address timelock;
@@ -96,26 +109,53 @@ contract Deploy is Script {
         }
 
         HaltController controller = new HaltController(d.oracle, d.deployer, d.keeper);
-        Market market = new Market(d.wNVDAx, d.usdg, d.oracle, address(controller), d.deployer, MAX_LTV, LIQ_THRESHOLD);
         d.controller = address(controller);
+
+        // LenderVault needs Market's address to read its pending-accrual view,
+        // but Market's constructor needs LenderVault's address too -- deploy
+        // the vault first with `market` left unset (one-time-settable), wire
+        // Market to it, then close the loop with a single setMarket() call.
+        LenderVault vault = new LenderVault(d.usdg, d.deployer);
+        d.lenderVault = address(vault);
+
+        InterestRateModel irm =
+            new InterestRateModel(IRM_BASE_RATE_PER_YEAR, IRM_MULTIPLIER_PER_YEAR, IRM_JUMP_MULTIPLIER_PER_YEAR, IRM_KINK, d.deployer);
+        d.interestRateModel = address(irm);
+
+        Market market = new Market(
+            d.wNVDAx,
+            d.usdg,
+            d.oracle,
+            address(controller),
+            d.lenderVault,
+            d.interestRateModel,
+            d.deployer,
+            MAX_LTV,
+            LIQ_THRESHOLD,
+            RESERVE_FACTOR
+        );
         d.market = address(market);
+        vault.setMarket(d.market);
 
         // Seeding market liquidity only works with the mock -- can't mint real USDG.
+        // The deployer becomes the vault's first LP, same as any other depositor.
         if (d.usingMockUsdg) {
             MockUSDG(d.usdg).mint(d.deployer, MARKET_SEED_LIQUIDITY);
-            MockUSDG(d.usdg).approve(d.market, MARKET_SEED_LIQUIDITY);
-            market.fundMarket(MARKET_SEED_LIQUIDITY);
+            MockUSDG(d.usdg).approve(d.lenderVault, MARKET_SEED_LIQUIDITY);
+            vault.deposit(MARKET_SEED_LIQUIDITY, d.deployer);
         }
         wNVDAx.mint(d.deployer, DEMO_COLLATERAL_MINT); // only the deployer holds mock wNVDAx either way
 
-        _deployGovernanceAndTransfer(d, oracle, market, controller);
+        _deployGovernanceAndTransfer(d, oracle, market, controller, vault, irm);
     }
 
     function _deployGovernanceAndTransfer(
         Deployment memory d,
         MockPausableOracle oracle,
         Market market,
-        HaltController controller
+        HaltController controller,
+        LenderVault vault,
+        InterestRateModel irm
     ) internal {
         address[] memory multisigSigners = _resolveMultisigSigners(d.deployer);
         d.multisigThreshold = vm.envOr("MULTISIG_THRESHOLD", uint256(1));
@@ -137,6 +177,8 @@ contract Deploy is Script {
         oracle.transferOwnership(d.multisig); // tier 2: fast, multi-party, no delay
         market.transferOwnership(d.timelock); // tier 3: multi-party + mandatory delay
         controller.transferOwnership(d.timelock); // tier 3: multi-party + mandatory delay
+        vault.transferOwnership(d.timelock); // tier 3: multi-party + mandatory delay
+        irm.transferOwnership(d.timelock); // tier 3: rate curve changes are a risk parameter like any other
         // keeper (tier 1) was already set at construction -- not an owner-transferable role.
     }
 
@@ -147,14 +189,16 @@ contract Deploy is Script {
         console2.log("wNVDAx (mock):     ", d.wNVDAx);
         console2.log("USDG:              ", d.usdg, d.usingMockUsdg ? "(mock, 6 decimals)" : "(real)");
         console2.log("HaltController:    ", d.controller, "(owner: timelock)");
+        console2.log("LenderVault:       ", d.lenderVault, "(owner: timelock)");
+        console2.log("InterestRateModel: ", d.interestRateModel, "(owner: timelock)");
         console2.log("Market:            ", d.market, "(owner: timelock)");
         console2.log("Multisig:          ", d.multisig);
         console2.log("  threshold", d.multisigThreshold, "of", d.multisigSignerCount);
         console2.log("TimelockController:", d.timelock, "minDelay (s):", d.timelockMinDelay);
         if (d.usingMockUsdg) {
-            console2.log("Market seeded with", MARKET_SEED_LIQUIDITY / 10 ** MOCK_USDG_DECIMALS, "mock USDG liquidity");
+            console2.log("Vault seeded with", MARKET_SEED_LIQUIDITY / 10 ** MOCK_USDG_DECIMALS, "mock USDG liquidity (deployer is first LP)");
         } else {
-            console2.log("NOTE: market NOT seeded -- fund it manually with real USDG via market.fundMarket()");
+            console2.log("NOTE: vault NOT seeded -- fund it manually with real USDG via vault.deposit()");
         }
         if (d.multisigSignerCount == 1) {
             console2.log("NOTE: multisig has a single signer (the deployer) -- add real co-signers via");

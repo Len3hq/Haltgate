@@ -260,6 +260,667 @@ export const iPausableOracleAbi = [
 ] as const
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// InterestRateModel
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+export const interestRateModelAbi = [
+  {
+    type: 'constructor',
+    inputs: [
+      { name: 'baseRatePerYear', internalType: 'uint256', type: 'uint256' },
+      { name: 'multiplierPerYear', internalType: 'uint256', type: 'uint256' },
+      {
+        name: 'jumpMultiplierPerYear',
+        internalType: 'uint256',
+        type: 'uint256',
+      },
+      { name: 'kink_', internalType: 'uint256', type: 'uint256' },
+      { name: 'owner_', internalType: 'address', type: 'address' },
+    ],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'baseRatePerSecond',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'cash', internalType: 'uint256', type: 'uint256' },
+      { name: 'borrows', internalType: 'uint256', type: 'uint256' },
+    ],
+    name: 'getBorrowRatePerSecond',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'cash', internalType: 'uint256', type: 'uint256' },
+      { name: 'borrows', internalType: 'uint256', type: 'uint256' },
+      { name: 'reserveFactor', internalType: 'uint256', type: 'uint256' },
+    ],
+    name: 'getSupplyRatePerSecond',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'jumpMultiplierPerSecond',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'kink',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'multiplierPerSecond',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'owner',
+    outputs: [{ name: '', internalType: 'address', type: 'address' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'renounceOwnership',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'baseRatePerYear', internalType: 'uint256', type: 'uint256' },
+      { name: 'multiplierPerYear', internalType: 'uint256', type: 'uint256' },
+      {
+        name: 'jumpMultiplierPerYear',
+        internalType: 'uint256',
+        type: 'uint256',
+      },
+      { name: 'kink_', internalType: 'uint256', type: 'uint256' },
+    ],
+    name: 'setParams',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'newOwner', internalType: 'address', type: 'address' }],
+    name: 'transferOwnership',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'cash', internalType: 'uint256', type: 'uint256' },
+      { name: 'borrows', internalType: 'uint256', type: 'uint256' },
+    ],
+    name: 'utilizationRate',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'pure',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'previousOwner',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      {
+        name: 'newOwner',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+    ],
+    name: 'OwnershipTransferred',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'baseRatePerYear',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+      {
+        name: 'multiplierPerYear',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+      {
+        name: 'jumpMultiplierPerYear',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+      {
+        name: 'kink',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+    ],
+    name: 'ParamsUpdated',
+  },
+  { type: 'error', inputs: [], name: 'InvalidKink' },
+  {
+    type: 'error',
+    inputs: [{ name: 'owner', internalType: 'address', type: 'address' }],
+    name: 'OwnableInvalidOwner',
+  },
+  {
+    type: 'error',
+    inputs: [{ name: 'account', internalType: 'address', type: 'address' }],
+    name: 'OwnableUnauthorizedAccount',
+  },
+] as const
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// LenderVault
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+export const lenderVaultAbi = [
+  {
+    type: 'constructor',
+    inputs: [
+      { name: 'asset_', internalType: 'address', type: 'address' },
+      { name: 'owner_', internalType: 'address', type: 'address' },
+    ],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'owner', internalType: 'address', type: 'address' },
+      { name: 'spender', internalType: 'address', type: 'address' },
+    ],
+    name: 'allowance',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'spender', internalType: 'address', type: 'address' },
+      { name: 'value', internalType: 'uint256', type: 'uint256' },
+    ],
+    name: 'approve',
+    outputs: [{ name: '', internalType: 'bool', type: 'bool' }],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'asset',
+    outputs: [{ name: '', internalType: 'address', type: 'address' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'account', internalType: 'address', type: 'address' }],
+    name: 'balanceOf',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'to', internalType: 'address', type: 'address' },
+      { name: 'amount', internalType: 'uint256', type: 'uint256' },
+    ],
+    name: 'borrowCash',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'shares', internalType: 'uint256', type: 'uint256' }],
+    name: 'convertToAssets',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'assets', internalType: 'uint256', type: 'uint256' }],
+    name: 'convertToShares',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'decimals',
+    outputs: [{ name: '', internalType: 'uint8', type: 'uint8' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'assets', internalType: 'uint256', type: 'uint256' },
+      { name: 'receiver', internalType: 'address', type: 'address' },
+    ],
+    name: 'deposit',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'market',
+    outputs: [{ name: '', internalType: 'contract Market', type: 'address' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: '', internalType: 'address', type: 'address' }],
+    name: 'maxDeposit',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: '', internalType: 'address', type: 'address' }],
+    name: 'maxMint',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'owner_', internalType: 'address', type: 'address' }],
+    name: 'maxRedeem',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'owner', internalType: 'address', type: 'address' }],
+    name: 'maxWithdraw',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'shares', internalType: 'uint256', type: 'uint256' },
+      { name: 'receiver', internalType: 'address', type: 'address' },
+    ],
+    name: 'mint',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'name',
+    outputs: [{ name: '', internalType: 'string', type: 'string' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'owner',
+    outputs: [{ name: '', internalType: 'address', type: 'address' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'assets', internalType: 'uint256', type: 'uint256' }],
+    name: 'previewDeposit',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'shares', internalType: 'uint256', type: 'uint256' }],
+    name: 'previewMint',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'shares', internalType: 'uint256', type: 'uint256' }],
+    name: 'previewRedeem',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'assets', internalType: 'uint256', type: 'uint256' }],
+    name: 'previewWithdraw',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'shares', internalType: 'uint256', type: 'uint256' },
+      { name: 'receiver', internalType: 'address', type: 'address' },
+      { name: 'owner', internalType: 'address', type: 'address' },
+    ],
+    name: 'redeem',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'renounceOwnership',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'market_', internalType: 'address', type: 'address' }],
+    name: 'setMarket',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'symbol',
+    outputs: [{ name: '', internalType: 'string', type: 'string' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'totalAssets',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'totalSupply',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'to', internalType: 'address', type: 'address' },
+      { name: 'value', internalType: 'uint256', type: 'uint256' },
+    ],
+    name: 'transfer',
+    outputs: [{ name: '', internalType: 'bool', type: 'bool' }],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'from', internalType: 'address', type: 'address' },
+      { name: 'to', internalType: 'address', type: 'address' },
+      { name: 'value', internalType: 'uint256', type: 'uint256' },
+    ],
+    name: 'transferFrom',
+    outputs: [{ name: '', internalType: 'bool', type: 'bool' }],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'newOwner', internalType: 'address', type: 'address' }],
+    name: 'transferOwnership',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'assets', internalType: 'uint256', type: 'uint256' },
+      { name: 'receiver', internalType: 'address', type: 'address' },
+      { name: 'owner', internalType: 'address', type: 'address' },
+    ],
+    name: 'withdraw',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'owner',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      {
+        name: 'spender',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      {
+        name: 'value',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+    ],
+    name: 'Approval',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'sender',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      {
+        name: 'owner',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      {
+        name: 'assets',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+      {
+        name: 'shares',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+    ],
+    name: 'Deposit',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'previousOwner',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      {
+        name: 'newOwner',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+    ],
+    name: 'OwnershipTransferred',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      { name: 'from', internalType: 'address', type: 'address', indexed: true },
+      { name: 'to', internalType: 'address', type: 'address', indexed: true },
+      {
+        name: 'value',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+    ],
+    name: 'Transfer',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'sender',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      {
+        name: 'receiver',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      {
+        name: 'owner',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      {
+        name: 'assets',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+      {
+        name: 'shares',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+    ],
+    name: 'Withdraw',
+  },
+  {
+    type: 'error',
+    inputs: [
+      { name: 'spender', internalType: 'address', type: 'address' },
+      { name: 'allowance', internalType: 'uint256', type: 'uint256' },
+      { name: 'needed', internalType: 'uint256', type: 'uint256' },
+    ],
+    name: 'ERC20InsufficientAllowance',
+  },
+  {
+    type: 'error',
+    inputs: [
+      { name: 'sender', internalType: 'address', type: 'address' },
+      { name: 'balance', internalType: 'uint256', type: 'uint256' },
+      { name: 'needed', internalType: 'uint256', type: 'uint256' },
+    ],
+    name: 'ERC20InsufficientBalance',
+  },
+  {
+    type: 'error',
+    inputs: [{ name: 'approver', internalType: 'address', type: 'address' }],
+    name: 'ERC20InvalidApprover',
+  },
+  {
+    type: 'error',
+    inputs: [{ name: 'receiver', internalType: 'address', type: 'address' }],
+    name: 'ERC20InvalidReceiver',
+  },
+  {
+    type: 'error',
+    inputs: [{ name: 'sender', internalType: 'address', type: 'address' }],
+    name: 'ERC20InvalidSender',
+  },
+  {
+    type: 'error',
+    inputs: [{ name: 'spender', internalType: 'address', type: 'address' }],
+    name: 'ERC20InvalidSpender',
+  },
+  {
+    type: 'error',
+    inputs: [
+      { name: 'receiver', internalType: 'address', type: 'address' },
+      { name: 'assets', internalType: 'uint256', type: 'uint256' },
+      { name: 'max', internalType: 'uint256', type: 'uint256' },
+    ],
+    name: 'ERC4626ExceededMaxDeposit',
+  },
+  {
+    type: 'error',
+    inputs: [
+      { name: 'receiver', internalType: 'address', type: 'address' },
+      { name: 'shares', internalType: 'uint256', type: 'uint256' },
+      { name: 'max', internalType: 'uint256', type: 'uint256' },
+    ],
+    name: 'ERC4626ExceededMaxMint',
+  },
+  {
+    type: 'error',
+    inputs: [
+      { name: 'owner', internalType: 'address', type: 'address' },
+      { name: 'shares', internalType: 'uint256', type: 'uint256' },
+      { name: 'max', internalType: 'uint256', type: 'uint256' },
+    ],
+    name: 'ERC4626ExceededMaxRedeem',
+  },
+  {
+    type: 'error',
+    inputs: [
+      { name: 'owner', internalType: 'address', type: 'address' },
+      { name: 'assets', internalType: 'uint256', type: 'uint256' },
+      { name: 'max', internalType: 'uint256', type: 'uint256' },
+    ],
+    name: 'ERC4626ExceededMaxWithdraw',
+  },
+  { type: 'error', inputs: [], name: 'MarketAlreadySet' },
+  { type: 'error', inputs: [], name: 'OnlyMarket' },
+  {
+    type: 'error',
+    inputs: [{ name: 'owner', internalType: 'address', type: 'address' }],
+    name: 'OwnableInvalidOwner',
+  },
+  {
+    type: 'error',
+    inputs: [{ name: 'account', internalType: 'address', type: 'address' }],
+    name: 'OwnableUnauthorizedAccount',
+  },
+  { type: 'error', inputs: [], name: 'ReentrancyGuardReentrantCall' },
+  {
+    type: 'error',
+    inputs: [{ name: 'token', internalType: 'address', type: 'address' }],
+    name: 'SafeERC20FailedOperation',
+  },
+  { type: 'error', inputs: [], name: 'ZeroAddress' },
+] as const
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Market
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -271,6 +932,8 @@ export const marketAbi = [
       { name: 'debtToken_', internalType: 'address', type: 'address' },
       { name: 'oracle_', internalType: 'address', type: 'address' },
       { name: 'haltController_', internalType: 'address', type: 'address' },
+      { name: 'lenderVault_', internalType: 'address', type: 'address' },
+      { name: 'interestRateModel_', internalType: 'address', type: 'address' },
       { name: 'owner_', internalType: 'address', type: 'address' },
       { name: 'maxLTV_', internalType: 'uint256', type: 'uint256' },
       {
@@ -278,6 +941,7 @@ export const marketAbi = [
         internalType: 'uint256',
         type: 'uint256',
       },
+      { name: 'reserveFactor_', internalType: 'uint256', type: 'uint256' },
     ],
     stateMutability: 'nonpayable',
   },
@@ -290,10 +954,24 @@ export const marketAbi = [
   },
   {
     type: 'function',
+    inputs: [],
+    name: 'accrueInterest',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
     inputs: [{ name: 'amount', internalType: 'uint256', type: 'uint256' }],
     name: 'borrow',
     outputs: [],
     stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'borrowIndex',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
   },
   {
     type: 'function',
@@ -307,6 +985,13 @@ export const marketAbi = [
     inputs: [],
     name: 'collateralToken',
     outputs: [{ name: '', internalType: 'contract IERC20', type: 'address' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'user', internalType: 'address', type: 'address' }],
+    name: 'currentDebt',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
     stateMutability: 'view',
   },
   {
@@ -325,10 +1010,13 @@ export const marketAbi = [
   },
   {
     type: 'function',
-    inputs: [{ name: 'amount', internalType: 'uint256', type: 'uint256' }],
-    name: 'fundMarket',
-    outputs: [],
-    stateMutability: 'nonpayable',
+    inputs: [{ name: 'user', internalType: 'address', type: 'address' }],
+    name: 'getPosition',
+    outputs: [
+      { name: 'collateral', internalType: 'uint256', type: 'uint256' },
+      { name: 'debt', internalType: 'uint256', type: 'uint256' },
+    ],
+    stateMutability: 'view',
   },
   {
     type: 'function',
@@ -348,6 +1036,15 @@ export const marketAbi = [
   },
   {
     type: 'function',
+    inputs: [],
+    name: 'interestRateModel',
+    outputs: [
+      { name: '', internalType: 'contract InterestRateModel', type: 'address' },
+    ],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
     inputs: [{ name: 'user', internalType: 'address', type: 'address' }],
     name: 'isLiquidatable',
     outputs: [{ name: '', internalType: 'bool', type: 'bool' }],
@@ -358,6 +1055,22 @@ export const marketAbi = [
     inputs: [],
     name: 'isSystemSolvent',
     outputs: [{ name: '', internalType: 'bool', type: 'bool' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'lastAccrualTimestamp',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'lenderVault',
+    outputs: [
+      { name: '', internalType: 'contract LenderVault', type: 'address' },
+    ],
     stateMutability: 'view',
   },
   {
@@ -381,6 +1094,13 @@ export const marketAbi = [
     type: 'function',
     inputs: [],
     name: 'liquidationThreshold',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'lpOwedBorrowsView',
     outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
     stateMutability: 'view',
   },
@@ -420,7 +1140,8 @@ export const marketAbi = [
     name: 'positions',
     outputs: [
       { name: 'collateral', internalType: 'uint256', type: 'uint256' },
-      { name: 'debt', internalType: 'uint256', type: 'uint256' },
+      { name: 'principal', internalType: 'uint256', type: 'uint256' },
+      { name: 'borrowIndexSnapshot', internalType: 'uint256', type: 'uint256' },
     ],
     stateMutability: 'view',
   },
@@ -440,6 +1161,20 @@ export const marketAbi = [
   },
   {
     type: 'function',
+    inputs: [],
+    name: 'reserveFactor',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'newModel', internalType: 'address', type: 'address' }],
+    name: 'setInterestRateModel',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
     inputs: [{ name: 'newBonus', internalType: 'uint256', type: 'uint256' }],
     name: 'setLiquidationBonus',
     outputs: [],
@@ -451,6 +1186,15 @@ export const marketAbi = [
       { name: 'newMaxStaleness', internalType: 'uint256', type: 'uint256' },
     ],
     name: 'setMaxOracleStaleness',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'newReserveFactor', internalType: 'uint256', type: 'uint256' },
+    ],
+    name: 'setReserveFactor',
     outputs: [],
     stateMutability: 'nonpayable',
   },
@@ -478,6 +1222,13 @@ export const marketAbi = [
   {
     type: 'function',
     inputs: [],
+    name: 'totalBorrows',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
     name: 'totalCollateral',
     outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
     stateMutability: 'view',
@@ -485,7 +1236,7 @@ export const marketAbi = [
   {
     type: 'function',
     inputs: [],
-    name: 'totalDebt',
+    name: 'totalReserves',
     outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
     stateMutability: 'view',
   },
@@ -504,6 +1255,16 @@ export const marketAbi = [
     stateMutability: 'nonpayable',
   },
   {
+    type: 'function',
+    inputs: [
+      { name: 'to', internalType: 'address', type: 'address' },
+      { name: 'amount', internalType: 'uint256', type: 'uint256' },
+    ],
+    name: 'withdrawReserves',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
     type: 'event',
     anonymous: false,
     inputs: [
@@ -516,6 +1277,50 @@ export const marketAbi = [
       },
     ],
     name: 'Borrowed',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'interestAccumulated',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+      {
+        name: 'reservesAdded',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+      {
+        name: 'borrowIndex',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+      {
+        name: 'totalBorrows',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+    ],
+    name: 'InterestAccrued',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'newModel',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+    ],
+    name: 'InterestRateModelUpdated',
   },
   {
     type: 'event',
@@ -607,6 +1412,33 @@ export const marketAbi = [
     anonymous: false,
     inputs: [
       {
+        name: 'newReserveFactor',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+    ],
+    name: 'ReserveFactorUpdated',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      { name: 'to', internalType: 'address', type: 'address', indexed: true },
+      {
+        name: 'amount',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+    ],
+    name: 'ReservesWithdrawn',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
         name: 'maxLTV',
         internalType: 'uint256',
         type: 'uint256',
@@ -651,6 +1483,9 @@ export const marketAbi = [
   },
   { type: 'error', inputs: [], name: 'ExceedsMaxLTV' },
   { type: 'error', inputs: [], name: 'InsufficientCollateral' },
+  { type: 'error', inputs: [], name: 'InsufficientLiquidity' },
+  { type: 'error', inputs: [], name: 'InsufficientReserves' },
+  { type: 'error', inputs: [], name: 'InvalidReserveFactor' },
   { type: 'error', inputs: [], name: 'InvalidRiskParams' },
   { type: 'error', inputs: [], name: 'MarketHalted' },
   { type: 'error', inputs: [], name: 'NotLiquidatable' },
@@ -680,6 +1515,7 @@ export const marketAbi = [
     name: 'StaleOracle',
   },
   { type: 'error', inputs: [], name: 'UnsupportedDecimals' },
+  { type: 'error', inputs: [], name: 'ZeroAddress' },
   { type: 'error', inputs: [], name: 'ZeroAmount' },
 ] as const
 
@@ -1463,6 +2299,604 @@ export const useReadIPausableOracleLatestPrice =
   })
 
 /**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link interestRateModelAbi}__
+ */
+export const useReadInterestRateModel = /*#__PURE__*/ createUseReadContract({
+  abi: interestRateModelAbi,
+})
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link interestRateModelAbi}__ and `functionName` set to `"baseRatePerSecond"`
+ */
+export const useReadInterestRateModelBaseRatePerSecond =
+  /*#__PURE__*/ createUseReadContract({
+    abi: interestRateModelAbi,
+    functionName: 'baseRatePerSecond',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link interestRateModelAbi}__ and `functionName` set to `"getBorrowRatePerSecond"`
+ */
+export const useReadInterestRateModelGetBorrowRatePerSecond =
+  /*#__PURE__*/ createUseReadContract({
+    abi: interestRateModelAbi,
+    functionName: 'getBorrowRatePerSecond',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link interestRateModelAbi}__ and `functionName` set to `"getSupplyRatePerSecond"`
+ */
+export const useReadInterestRateModelGetSupplyRatePerSecond =
+  /*#__PURE__*/ createUseReadContract({
+    abi: interestRateModelAbi,
+    functionName: 'getSupplyRatePerSecond',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link interestRateModelAbi}__ and `functionName` set to `"jumpMultiplierPerSecond"`
+ */
+export const useReadInterestRateModelJumpMultiplierPerSecond =
+  /*#__PURE__*/ createUseReadContract({
+    abi: interestRateModelAbi,
+    functionName: 'jumpMultiplierPerSecond',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link interestRateModelAbi}__ and `functionName` set to `"kink"`
+ */
+export const useReadInterestRateModelKink = /*#__PURE__*/ createUseReadContract(
+  { abi: interestRateModelAbi, functionName: 'kink' },
+)
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link interestRateModelAbi}__ and `functionName` set to `"multiplierPerSecond"`
+ */
+export const useReadInterestRateModelMultiplierPerSecond =
+  /*#__PURE__*/ createUseReadContract({
+    abi: interestRateModelAbi,
+    functionName: 'multiplierPerSecond',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link interestRateModelAbi}__ and `functionName` set to `"owner"`
+ */
+export const useReadInterestRateModelOwner =
+  /*#__PURE__*/ createUseReadContract({
+    abi: interestRateModelAbi,
+    functionName: 'owner',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link interestRateModelAbi}__ and `functionName` set to `"utilizationRate"`
+ */
+export const useReadInterestRateModelUtilizationRate =
+  /*#__PURE__*/ createUseReadContract({
+    abi: interestRateModelAbi,
+    functionName: 'utilizationRate',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link interestRateModelAbi}__
+ */
+export const useWriteInterestRateModel = /*#__PURE__*/ createUseWriteContract({
+  abi: interestRateModelAbi,
+})
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link interestRateModelAbi}__ and `functionName` set to `"renounceOwnership"`
+ */
+export const useWriteInterestRateModelRenounceOwnership =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: interestRateModelAbi,
+    functionName: 'renounceOwnership',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link interestRateModelAbi}__ and `functionName` set to `"setParams"`
+ */
+export const useWriteInterestRateModelSetParams =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: interestRateModelAbi,
+    functionName: 'setParams',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link interestRateModelAbi}__ and `functionName` set to `"transferOwnership"`
+ */
+export const useWriteInterestRateModelTransferOwnership =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: interestRateModelAbi,
+    functionName: 'transferOwnership',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link interestRateModelAbi}__
+ */
+export const useSimulateInterestRateModel =
+  /*#__PURE__*/ createUseSimulateContract({ abi: interestRateModelAbi })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link interestRateModelAbi}__ and `functionName` set to `"renounceOwnership"`
+ */
+export const useSimulateInterestRateModelRenounceOwnership =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: interestRateModelAbi,
+    functionName: 'renounceOwnership',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link interestRateModelAbi}__ and `functionName` set to `"setParams"`
+ */
+export const useSimulateInterestRateModelSetParams =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: interestRateModelAbi,
+    functionName: 'setParams',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link interestRateModelAbi}__ and `functionName` set to `"transferOwnership"`
+ */
+export const useSimulateInterestRateModelTransferOwnership =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: interestRateModelAbi,
+    functionName: 'transferOwnership',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link interestRateModelAbi}__
+ */
+export const useWatchInterestRateModelEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({ abi: interestRateModelAbi })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link interestRateModelAbi}__ and `eventName` set to `"OwnershipTransferred"`
+ */
+export const useWatchInterestRateModelOwnershipTransferredEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: interestRateModelAbi,
+    eventName: 'OwnershipTransferred',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link interestRateModelAbi}__ and `eventName` set to `"ParamsUpdated"`
+ */
+export const useWatchInterestRateModelParamsUpdatedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: interestRateModelAbi,
+    eventName: 'ParamsUpdated',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link lenderVaultAbi}__
+ */
+export const useReadLenderVault = /*#__PURE__*/ createUseReadContract({
+  abi: lenderVaultAbi,
+})
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link lenderVaultAbi}__ and `functionName` set to `"allowance"`
+ */
+export const useReadLenderVaultAllowance = /*#__PURE__*/ createUseReadContract({
+  abi: lenderVaultAbi,
+  functionName: 'allowance',
+})
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link lenderVaultAbi}__ and `functionName` set to `"asset"`
+ */
+export const useReadLenderVaultAsset = /*#__PURE__*/ createUseReadContract({
+  abi: lenderVaultAbi,
+  functionName: 'asset',
+})
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link lenderVaultAbi}__ and `functionName` set to `"balanceOf"`
+ */
+export const useReadLenderVaultBalanceOf = /*#__PURE__*/ createUseReadContract({
+  abi: lenderVaultAbi,
+  functionName: 'balanceOf',
+})
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link lenderVaultAbi}__ and `functionName` set to `"convertToAssets"`
+ */
+export const useReadLenderVaultConvertToAssets =
+  /*#__PURE__*/ createUseReadContract({
+    abi: lenderVaultAbi,
+    functionName: 'convertToAssets',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link lenderVaultAbi}__ and `functionName` set to `"convertToShares"`
+ */
+export const useReadLenderVaultConvertToShares =
+  /*#__PURE__*/ createUseReadContract({
+    abi: lenderVaultAbi,
+    functionName: 'convertToShares',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link lenderVaultAbi}__ and `functionName` set to `"decimals"`
+ */
+export const useReadLenderVaultDecimals = /*#__PURE__*/ createUseReadContract({
+  abi: lenderVaultAbi,
+  functionName: 'decimals',
+})
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link lenderVaultAbi}__ and `functionName` set to `"market"`
+ */
+export const useReadLenderVaultMarket = /*#__PURE__*/ createUseReadContract({
+  abi: lenderVaultAbi,
+  functionName: 'market',
+})
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link lenderVaultAbi}__ and `functionName` set to `"maxDeposit"`
+ */
+export const useReadLenderVaultMaxDeposit = /*#__PURE__*/ createUseReadContract(
+  { abi: lenderVaultAbi, functionName: 'maxDeposit' },
+)
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link lenderVaultAbi}__ and `functionName` set to `"maxMint"`
+ */
+export const useReadLenderVaultMaxMint = /*#__PURE__*/ createUseReadContract({
+  abi: lenderVaultAbi,
+  functionName: 'maxMint',
+})
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link lenderVaultAbi}__ and `functionName` set to `"maxRedeem"`
+ */
+export const useReadLenderVaultMaxRedeem = /*#__PURE__*/ createUseReadContract({
+  abi: lenderVaultAbi,
+  functionName: 'maxRedeem',
+})
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link lenderVaultAbi}__ and `functionName` set to `"maxWithdraw"`
+ */
+export const useReadLenderVaultMaxWithdraw =
+  /*#__PURE__*/ createUseReadContract({
+    abi: lenderVaultAbi,
+    functionName: 'maxWithdraw',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link lenderVaultAbi}__ and `functionName` set to `"name"`
+ */
+export const useReadLenderVaultName = /*#__PURE__*/ createUseReadContract({
+  abi: lenderVaultAbi,
+  functionName: 'name',
+})
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link lenderVaultAbi}__ and `functionName` set to `"owner"`
+ */
+export const useReadLenderVaultOwner = /*#__PURE__*/ createUseReadContract({
+  abi: lenderVaultAbi,
+  functionName: 'owner',
+})
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link lenderVaultAbi}__ and `functionName` set to `"previewDeposit"`
+ */
+export const useReadLenderVaultPreviewDeposit =
+  /*#__PURE__*/ createUseReadContract({
+    abi: lenderVaultAbi,
+    functionName: 'previewDeposit',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link lenderVaultAbi}__ and `functionName` set to `"previewMint"`
+ */
+export const useReadLenderVaultPreviewMint =
+  /*#__PURE__*/ createUseReadContract({
+    abi: lenderVaultAbi,
+    functionName: 'previewMint',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link lenderVaultAbi}__ and `functionName` set to `"previewRedeem"`
+ */
+export const useReadLenderVaultPreviewRedeem =
+  /*#__PURE__*/ createUseReadContract({
+    abi: lenderVaultAbi,
+    functionName: 'previewRedeem',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link lenderVaultAbi}__ and `functionName` set to `"previewWithdraw"`
+ */
+export const useReadLenderVaultPreviewWithdraw =
+  /*#__PURE__*/ createUseReadContract({
+    abi: lenderVaultAbi,
+    functionName: 'previewWithdraw',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link lenderVaultAbi}__ and `functionName` set to `"symbol"`
+ */
+export const useReadLenderVaultSymbol = /*#__PURE__*/ createUseReadContract({
+  abi: lenderVaultAbi,
+  functionName: 'symbol',
+})
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link lenderVaultAbi}__ and `functionName` set to `"totalAssets"`
+ */
+export const useReadLenderVaultTotalAssets =
+  /*#__PURE__*/ createUseReadContract({
+    abi: lenderVaultAbi,
+    functionName: 'totalAssets',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link lenderVaultAbi}__ and `functionName` set to `"totalSupply"`
+ */
+export const useReadLenderVaultTotalSupply =
+  /*#__PURE__*/ createUseReadContract({
+    abi: lenderVaultAbi,
+    functionName: 'totalSupply',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link lenderVaultAbi}__
+ */
+export const useWriteLenderVault = /*#__PURE__*/ createUseWriteContract({
+  abi: lenderVaultAbi,
+})
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link lenderVaultAbi}__ and `functionName` set to `"approve"`
+ */
+export const useWriteLenderVaultApprove = /*#__PURE__*/ createUseWriteContract({
+  abi: lenderVaultAbi,
+  functionName: 'approve',
+})
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link lenderVaultAbi}__ and `functionName` set to `"borrowCash"`
+ */
+export const useWriteLenderVaultBorrowCash =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: lenderVaultAbi,
+    functionName: 'borrowCash',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link lenderVaultAbi}__ and `functionName` set to `"deposit"`
+ */
+export const useWriteLenderVaultDeposit = /*#__PURE__*/ createUseWriteContract({
+  abi: lenderVaultAbi,
+  functionName: 'deposit',
+})
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link lenderVaultAbi}__ and `functionName` set to `"mint"`
+ */
+export const useWriteLenderVaultMint = /*#__PURE__*/ createUseWriteContract({
+  abi: lenderVaultAbi,
+  functionName: 'mint',
+})
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link lenderVaultAbi}__ and `functionName` set to `"redeem"`
+ */
+export const useWriteLenderVaultRedeem = /*#__PURE__*/ createUseWriteContract({
+  abi: lenderVaultAbi,
+  functionName: 'redeem',
+})
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link lenderVaultAbi}__ and `functionName` set to `"renounceOwnership"`
+ */
+export const useWriteLenderVaultRenounceOwnership =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: lenderVaultAbi,
+    functionName: 'renounceOwnership',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link lenderVaultAbi}__ and `functionName` set to `"setMarket"`
+ */
+export const useWriteLenderVaultSetMarket =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: lenderVaultAbi,
+    functionName: 'setMarket',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link lenderVaultAbi}__ and `functionName` set to `"transfer"`
+ */
+export const useWriteLenderVaultTransfer = /*#__PURE__*/ createUseWriteContract(
+  { abi: lenderVaultAbi, functionName: 'transfer' },
+)
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link lenderVaultAbi}__ and `functionName` set to `"transferFrom"`
+ */
+export const useWriteLenderVaultTransferFrom =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: lenderVaultAbi,
+    functionName: 'transferFrom',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link lenderVaultAbi}__ and `functionName` set to `"transferOwnership"`
+ */
+export const useWriteLenderVaultTransferOwnership =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: lenderVaultAbi,
+    functionName: 'transferOwnership',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link lenderVaultAbi}__ and `functionName` set to `"withdraw"`
+ */
+export const useWriteLenderVaultWithdraw = /*#__PURE__*/ createUseWriteContract(
+  { abi: lenderVaultAbi, functionName: 'withdraw' },
+)
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link lenderVaultAbi}__
+ */
+export const useSimulateLenderVault = /*#__PURE__*/ createUseSimulateContract({
+  abi: lenderVaultAbi,
+})
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link lenderVaultAbi}__ and `functionName` set to `"approve"`
+ */
+export const useSimulateLenderVaultApprove =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: lenderVaultAbi,
+    functionName: 'approve',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link lenderVaultAbi}__ and `functionName` set to `"borrowCash"`
+ */
+export const useSimulateLenderVaultBorrowCash =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: lenderVaultAbi,
+    functionName: 'borrowCash',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link lenderVaultAbi}__ and `functionName` set to `"deposit"`
+ */
+export const useSimulateLenderVaultDeposit =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: lenderVaultAbi,
+    functionName: 'deposit',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link lenderVaultAbi}__ and `functionName` set to `"mint"`
+ */
+export const useSimulateLenderVaultMint =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: lenderVaultAbi,
+    functionName: 'mint',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link lenderVaultAbi}__ and `functionName` set to `"redeem"`
+ */
+export const useSimulateLenderVaultRedeem =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: lenderVaultAbi,
+    functionName: 'redeem',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link lenderVaultAbi}__ and `functionName` set to `"renounceOwnership"`
+ */
+export const useSimulateLenderVaultRenounceOwnership =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: lenderVaultAbi,
+    functionName: 'renounceOwnership',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link lenderVaultAbi}__ and `functionName` set to `"setMarket"`
+ */
+export const useSimulateLenderVaultSetMarket =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: lenderVaultAbi,
+    functionName: 'setMarket',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link lenderVaultAbi}__ and `functionName` set to `"transfer"`
+ */
+export const useSimulateLenderVaultTransfer =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: lenderVaultAbi,
+    functionName: 'transfer',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link lenderVaultAbi}__ and `functionName` set to `"transferFrom"`
+ */
+export const useSimulateLenderVaultTransferFrom =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: lenderVaultAbi,
+    functionName: 'transferFrom',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link lenderVaultAbi}__ and `functionName` set to `"transferOwnership"`
+ */
+export const useSimulateLenderVaultTransferOwnership =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: lenderVaultAbi,
+    functionName: 'transferOwnership',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link lenderVaultAbi}__ and `functionName` set to `"withdraw"`
+ */
+export const useSimulateLenderVaultWithdraw =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: lenderVaultAbi,
+    functionName: 'withdraw',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link lenderVaultAbi}__
+ */
+export const useWatchLenderVaultEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({ abi: lenderVaultAbi })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link lenderVaultAbi}__ and `eventName` set to `"Approval"`
+ */
+export const useWatchLenderVaultApprovalEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: lenderVaultAbi,
+    eventName: 'Approval',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link lenderVaultAbi}__ and `eventName` set to `"Deposit"`
+ */
+export const useWatchLenderVaultDepositEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: lenderVaultAbi,
+    eventName: 'Deposit',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link lenderVaultAbi}__ and `eventName` set to `"OwnershipTransferred"`
+ */
+export const useWatchLenderVaultOwnershipTransferredEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: lenderVaultAbi,
+    eventName: 'OwnershipTransferred',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link lenderVaultAbi}__ and `eventName` set to `"Transfer"`
+ */
+export const useWatchLenderVaultTransferEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: lenderVaultAbi,
+    eventName: 'Transfer',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link lenderVaultAbi}__ and `eventName` set to `"Withdraw"`
+ */
+export const useWatchLenderVaultWithdrawEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: lenderVaultAbi,
+    eventName: 'Withdraw',
+  })
+
+/**
  * Wraps __{@link useReadContract}__ with `abi` set to __{@link marketAbi}__
  */
 export const useReadMarket = /*#__PURE__*/ createUseReadContract({
@@ -1475,6 +2909,14 @@ export const useReadMarket = /*#__PURE__*/ createUseReadContract({
 export const useReadMarketCloseFactor = /*#__PURE__*/ createUseReadContract({
   abi: marketAbi,
   functionName: 'CLOSE_FACTOR',
+})
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link marketAbi}__ and `functionName` set to `"borrowIndex"`
+ */
+export const useReadMarketBorrowIndex = /*#__PURE__*/ createUseReadContract({
+  abi: marketAbi,
+  functionName: 'borrowIndex',
 })
 
 /**
@@ -1494,6 +2936,14 @@ export const useReadMarketCollateralToken = /*#__PURE__*/ createUseReadContract(
 )
 
 /**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link marketAbi}__ and `functionName` set to `"currentDebt"`
+ */
+export const useReadMarketCurrentDebt = /*#__PURE__*/ createUseReadContract({
+  abi: marketAbi,
+  functionName: 'currentDebt',
+})
+
+/**
  * Wraps __{@link useReadContract}__ with `abi` set to __{@link marketAbi}__ and `functionName` set to `"debtDecimals"`
  */
 export const useReadMarketDebtDecimals = /*#__PURE__*/ createUseReadContract({
@@ -1507,6 +2957,14 @@ export const useReadMarketDebtDecimals = /*#__PURE__*/ createUseReadContract({
 export const useReadMarketDebtToken = /*#__PURE__*/ createUseReadContract({
   abi: marketAbi,
   functionName: 'debtToken',
+})
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link marketAbi}__ and `functionName` set to `"getPosition"`
+ */
+export const useReadMarketGetPosition = /*#__PURE__*/ createUseReadContract({
+  abi: marketAbi,
+  functionName: 'getPosition',
 })
 
 /**
@@ -1526,6 +2984,15 @@ export const useReadMarketHealthFactor = /*#__PURE__*/ createUseReadContract({
 })
 
 /**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link marketAbi}__ and `functionName` set to `"interestRateModel"`
+ */
+export const useReadMarketInterestRateModel =
+  /*#__PURE__*/ createUseReadContract({
+    abi: marketAbi,
+    functionName: 'interestRateModel',
+  })
+
+/**
  * Wraps __{@link useReadContract}__ with `abi` set to __{@link marketAbi}__ and `functionName` set to `"isLiquidatable"`
  */
 export const useReadMarketIsLiquidatable = /*#__PURE__*/ createUseReadContract({
@@ -1539,6 +3006,23 @@ export const useReadMarketIsLiquidatable = /*#__PURE__*/ createUseReadContract({
 export const useReadMarketIsSystemSolvent = /*#__PURE__*/ createUseReadContract(
   { abi: marketAbi, functionName: 'isSystemSolvent' },
 )
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link marketAbi}__ and `functionName` set to `"lastAccrualTimestamp"`
+ */
+export const useReadMarketLastAccrualTimestamp =
+  /*#__PURE__*/ createUseReadContract({
+    abi: marketAbi,
+    functionName: 'lastAccrualTimestamp',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link marketAbi}__ and `functionName` set to `"lenderVault"`
+ */
+export const useReadMarketLenderVault = /*#__PURE__*/ createUseReadContract({
+  abi: marketAbi,
+  functionName: 'lenderVault',
+})
 
 /**
  * Wraps __{@link useReadContract}__ with `abi` set to __{@link marketAbi}__ and `functionName` set to `"liquidationBonus"`
@@ -1556,6 +3040,15 @@ export const useReadMarketLiquidationThreshold =
   /*#__PURE__*/ createUseReadContract({
     abi: marketAbi,
     functionName: 'liquidationThreshold',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link marketAbi}__ and `functionName` set to `"lpOwedBorrowsView"`
+ */
+export const useReadMarketLpOwedBorrowsView =
+  /*#__PURE__*/ createUseReadContract({
+    abi: marketAbi,
+    functionName: 'lpOwedBorrowsView',
   })
 
 /**
@@ -1600,6 +3093,22 @@ export const useReadMarketPositions = /*#__PURE__*/ createUseReadContract({
 })
 
 /**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link marketAbi}__ and `functionName` set to `"reserveFactor"`
+ */
+export const useReadMarketReserveFactor = /*#__PURE__*/ createUseReadContract({
+  abi: marketAbi,
+  functionName: 'reserveFactor',
+})
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link marketAbi}__ and `functionName` set to `"totalBorrows"`
+ */
+export const useReadMarketTotalBorrows = /*#__PURE__*/ createUseReadContract({
+  abi: marketAbi,
+  functionName: 'totalBorrows',
+})
+
+/**
  * Wraps __{@link useReadContract}__ with `abi` set to __{@link marketAbi}__ and `functionName` set to `"totalCollateral"`
  */
 export const useReadMarketTotalCollateral = /*#__PURE__*/ createUseReadContract(
@@ -1607,11 +3116,11 @@ export const useReadMarketTotalCollateral = /*#__PURE__*/ createUseReadContract(
 )
 
 /**
- * Wraps __{@link useReadContract}__ with `abi` set to __{@link marketAbi}__ and `functionName` set to `"totalDebt"`
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link marketAbi}__ and `functionName` set to `"totalReserves"`
  */
-export const useReadMarketTotalDebt = /*#__PURE__*/ createUseReadContract({
+export const useReadMarketTotalReserves = /*#__PURE__*/ createUseReadContract({
   abi: marketAbi,
-  functionName: 'totalDebt',
+  functionName: 'totalReserves',
 })
 
 /**
@@ -1622,19 +3131,20 @@ export const useWriteMarket = /*#__PURE__*/ createUseWriteContract({
 })
 
 /**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link marketAbi}__ and `functionName` set to `"accrueInterest"`
+ */
+export const useWriteMarketAccrueInterest =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: marketAbi,
+    functionName: 'accrueInterest',
+  })
+
+/**
  * Wraps __{@link useWriteContract}__ with `abi` set to __{@link marketAbi}__ and `functionName` set to `"borrow"`
  */
 export const useWriteMarketBorrow = /*#__PURE__*/ createUseWriteContract({
   abi: marketAbi,
   functionName: 'borrow',
-})
-
-/**
- * Wraps __{@link useWriteContract}__ with `abi` set to __{@link marketAbi}__ and `functionName` set to `"fundMarket"`
- */
-export const useWriteMarketFundMarket = /*#__PURE__*/ createUseWriteContract({
-  abi: marketAbi,
-  functionName: 'fundMarket',
 })
 
 /**
@@ -1663,6 +3173,15 @@ export const useWriteMarketRepay = /*#__PURE__*/ createUseWriteContract({
 })
 
 /**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link marketAbi}__ and `functionName` set to `"setInterestRateModel"`
+ */
+export const useWriteMarketSetInterestRateModel =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: marketAbi,
+    functionName: 'setInterestRateModel',
+  })
+
+/**
  * Wraps __{@link useWriteContract}__ with `abi` set to __{@link marketAbi}__ and `functionName` set to `"setLiquidationBonus"`
  */
 export const useWriteMarketSetLiquidationBonus =
@@ -1678,6 +3197,15 @@ export const useWriteMarketSetMaxOracleStaleness =
   /*#__PURE__*/ createUseWriteContract({
     abi: marketAbi,
     functionName: 'setMaxOracleStaleness',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link marketAbi}__ and `functionName` set to `"setReserveFactor"`
+ */
+export const useWriteMarketSetReserveFactor =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: marketAbi,
+    functionName: 'setReserveFactor',
   })
 
 /**
@@ -1713,11 +3241,29 @@ export const useWriteMarketWithdraw = /*#__PURE__*/ createUseWriteContract({
 })
 
 /**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link marketAbi}__ and `functionName` set to `"withdrawReserves"`
+ */
+export const useWriteMarketWithdrawReserves =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: marketAbi,
+    functionName: 'withdrawReserves',
+  })
+
+/**
  * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link marketAbi}__
  */
 export const useSimulateMarket = /*#__PURE__*/ createUseSimulateContract({
   abi: marketAbi,
 })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link marketAbi}__ and `functionName` set to `"accrueInterest"`
+ */
+export const useSimulateMarketAccrueInterest =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: marketAbi,
+    functionName: 'accrueInterest',
+  })
 
 /**
  * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link marketAbi}__ and `functionName` set to `"borrow"`
@@ -1726,15 +3272,6 @@ export const useSimulateMarketBorrow = /*#__PURE__*/ createUseSimulateContract({
   abi: marketAbi,
   functionName: 'borrow',
 })
-
-/**
- * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link marketAbi}__ and `functionName` set to `"fundMarket"`
- */
-export const useSimulateMarketFundMarket =
-  /*#__PURE__*/ createUseSimulateContract({
-    abi: marketAbi,
-    functionName: 'fundMarket',
-  })
 
 /**
  * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link marketAbi}__ and `functionName` set to `"liquidate"`
@@ -1763,6 +3300,15 @@ export const useSimulateMarketRepay = /*#__PURE__*/ createUseSimulateContract({
 })
 
 /**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link marketAbi}__ and `functionName` set to `"setInterestRateModel"`
+ */
+export const useSimulateMarketSetInterestRateModel =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: marketAbi,
+    functionName: 'setInterestRateModel',
+  })
+
+/**
  * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link marketAbi}__ and `functionName` set to `"setLiquidationBonus"`
  */
 export const useSimulateMarketSetLiquidationBonus =
@@ -1778,6 +3324,15 @@ export const useSimulateMarketSetMaxOracleStaleness =
   /*#__PURE__*/ createUseSimulateContract({
     abi: marketAbi,
     functionName: 'setMaxOracleStaleness',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link marketAbi}__ and `functionName` set to `"setReserveFactor"`
+ */
+export const useSimulateMarketSetReserveFactor =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: marketAbi,
+    functionName: 'setReserveFactor',
   })
 
 /**
@@ -1816,6 +3371,15 @@ export const useSimulateMarketWithdraw =
   })
 
 /**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link marketAbi}__ and `functionName` set to `"withdrawReserves"`
+ */
+export const useSimulateMarketWithdrawReserves =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: marketAbi,
+    functionName: 'withdrawReserves',
+  })
+
+/**
  * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link marketAbi}__
  */
 export const useWatchMarketEvent = /*#__PURE__*/ createUseWatchContractEvent({
@@ -1829,6 +3393,24 @@ export const useWatchMarketBorrowedEvent =
   /*#__PURE__*/ createUseWatchContractEvent({
     abi: marketAbi,
     eventName: 'Borrowed',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link marketAbi}__ and `eventName` set to `"InterestAccrued"`
+ */
+export const useWatchMarketInterestAccruedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: marketAbi,
+    eventName: 'InterestAccrued',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link marketAbi}__ and `eventName` set to `"InterestRateModelUpdated"`
+ */
+export const useWatchMarketInterestRateModelUpdatedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: marketAbi,
+    eventName: 'InterestRateModelUpdated',
   })
 
 /**
@@ -1874,6 +3456,24 @@ export const useWatchMarketRepaidEvent =
   /*#__PURE__*/ createUseWatchContractEvent({
     abi: marketAbi,
     eventName: 'Repaid',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link marketAbi}__ and `eventName` set to `"ReserveFactorUpdated"`
+ */
+export const useWatchMarketReserveFactorUpdatedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: marketAbi,
+    eventName: 'ReserveFactorUpdated',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link marketAbi}__ and `eventName` set to `"ReservesWithdrawn"`
+ */
+export const useWatchMarketReservesWithdrawnEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: marketAbi,
+    eventName: 'ReservesWithdrawn',
   })
 
 /**

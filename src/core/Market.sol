@@ -7,13 +7,16 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {HaltController} from "./HaltController.sol";
+import {InterestRateModel} from "./InterestRateModel.sol";
+import {LenderVault} from "./LenderVault.sol";
 import {IPausableOracle} from "../oracle/IPausableOracle.sol";
 
-/// @notice Single isolated market: deposit collateral (wNVDAx), borrow USDG,
-/// repay -- gated end to end by HaltController so a corporate-action price
-/// discontinuity can never be borrowed or liquidated against. One fixed LTV
-/// and liquidation threshold for the hackathon demo; per-tier RiskModule
-/// config is roadmap, not v1 (see BUILD.md §4).
+/// @notice Single isolated market: deposit collateral (wNVDAx), borrow USDG
+/// out of LenderVault, repay with interest -- gated end to end by
+/// HaltController so a corporate-action price discontinuity can never be
+/// borrowed or liquidated against. One fixed LTV and liquidation threshold
+/// for the hackathon demo; per-tier RiskModule config is roadmap, not v1
+/// (see BUILD.md §4).
 ///
 /// Decimals: positions are stored in each token's own native decimals (what
 /// gets transferred), but every value comparison (LTV, liquidation threshold,
@@ -22,28 +25,49 @@ import {IPausableOracle} from "../oracle/IPausableOracle.sol";
 /// confirmed directly against the live contract -- so treating collateral
 /// and debt amounts as interchangeable without normalizing would have been
 /// silently wrong by a factor of 10^12 the moment real USDG was wired in.
+///
+/// Interest: a Compound-v2-style borrow index. `borrowIndex` starts at 1e18
+/// and only ever grows; every position stores its own principal plus the
+/// index value at its last touch, so per-user debt is recovered lazily as
+/// `principal * borrowIndex / snapshotIndex` without ever having to iterate
+/// positions. accrueInterest() is permissionless and called at the top of
+/// every state-changing function here, so on-chain state is always current
+/// at the moment anything reads it. View functions (healthFactor,
+/// isLiquidatable, currentDebt) additionally compute what accrual WOULD
+/// produce right now without writing anything, so they're accurate even
+/// between transactions -- critical, since understating a live debt in a
+/// health check would be a real safety bug, not a display quirk.
 contract Market is Ownable, ReentrancyGuard {
     using SafeERC20 for IERC20;
 
     struct Position {
         uint256 collateral; // collateralToken's native decimals
-        uint256 debt; // debtToken's native decimals
+        uint256 principal; // debtToken's native decimals, as of borrowIndexSnapshot
+        uint256 borrowIndexSnapshot; // WAD, borrowIndex value at last touch
     }
 
     uint256 private constant WAD = 1e18;
+    /// @notice Hard ceiling on reserveFactor -- governance can tune it, but
+    /// can never drive lender yield to zero even in a misconfiguration.
+    uint256 private constant MAX_RESERVE_FACTOR = 0.5e18;
 
     IERC20 public immutable collateralToken;
     IERC20 public immutable debtToken;
     IPausableOracle public immutable oracle;
     HaltController public immutable haltController;
+    LenderVault public immutable lenderVault;
     uint8 public immutable collateralDecimals;
     uint8 public immutable debtDecimals;
+
+    InterestRateModel public interestRateModel;
 
     /// @notice 18-decimal fixed point, e.g. 0.5e18 = 50%.
     uint256 public maxLTV;
     uint256 public liquidationThreshold;
     /// @notice Discount a liquidator receives on seized collateral, 18-decimal fixed point.
     uint256 public liquidationBonus;
+    /// @notice Fraction of accrued interest kept as protocol reserves rather than paid to lenders, WAD.
+    uint256 public reserveFactor;
     /// @notice Max fraction of a position's debt repayable in one liquidation call.
     uint256 public constant CLOSE_FACTOR = 0.5e18;
     /// @notice Max age (seconds) of the oracle's last update before borrow/
@@ -54,9 +78,14 @@ contract Market is Ownable, ReentrancyGuard {
     /// paused or simply stale; this is Market's own defense-in-depth check.
     uint256 public maxOracleStaleness;
 
+    /// @notice WAD, grows monotonically as interest accrues. Never resets.
+    uint256 public borrowIndex = WAD;
+    uint256 public totalBorrows;
+    uint256 public totalReserves;
+    uint256 public lastAccrualTimestamp;
+
     mapping(address => Position) public positions;
     uint256 public totalCollateral;
-    uint256 public totalDebt;
 
     event Supplied(address indexed user, uint256 amount);
     event Withdrawn(address indexed user, uint256 amount);
@@ -66,12 +95,20 @@ contract Market is Ownable, ReentrancyGuard {
     event RiskParamsUpdated(uint256 maxLTV, uint256 liquidationThreshold);
     event LiquidationBonusUpdated(uint256 newBonus);
     event MaxOracleStalenessUpdated(uint256 newMaxStaleness);
+    event InterestRateModelUpdated(address indexed newModel);
+    event ReserveFactorUpdated(uint256 newReserveFactor);
+    event ReservesWithdrawn(address indexed to, uint256 amount);
+    event InterestAccrued(uint256 interestAccumulated, uint256 reservesAdded, uint256 borrowIndex, uint256 totalBorrows);
 
     error MarketHalted();
     error ExceedsMaxLTV();
     error InsufficientCollateral();
+    error InsufficientLiquidity();
+    error InsufficientReserves();
     error ZeroAmount();
+    error ZeroAddress();
     error InvalidRiskParams();
+    error InvalidReserveFactor();
     error NotLiquidatable();
     error UnsupportedDecimals();
     error OraclePausedDirectly();
@@ -87,11 +124,16 @@ contract Market is Ownable, ReentrancyGuard {
         address debtToken_,
         address oracle_,
         address haltController_,
+        address lenderVault_,
+        address interestRateModel_,
         address owner_,
         uint256 maxLTV_,
-        uint256 liquidationThreshold_
+        uint256 liquidationThreshold_,
+        uint256 reserveFactor_
     ) Ownable(owner_) {
         if (liquidationThreshold_ <= maxLTV_ || liquidationThreshold_ > WAD) revert InvalidRiskParams();
+        if (lenderVault_ == address(0) || interestRateModel_ == address(0)) revert ZeroAddress();
+        if (reserveFactor_ > MAX_RESERVE_FACTOR) revert InvalidReserveFactor();
 
         uint8 collDec = IERC20Metadata(collateralToken_).decimals();
         uint8 debtDec = IERC20Metadata(debtToken_).decimals();
@@ -101,12 +143,16 @@ contract Market is Ownable, ReentrancyGuard {
         debtToken = IERC20(debtToken_);
         oracle = IPausableOracle(oracle_);
         haltController = HaltController(haltController_);
+        lenderVault = LenderVault(lenderVault_);
+        interestRateModel = InterestRateModel(interestRateModel_);
         collateralDecimals = collDec;
         debtDecimals = debtDec;
         maxLTV = maxLTV_;
         liquidationThreshold = liquidationThreshold_;
+        reserveFactor = reserveFactor_;
         liquidationBonus = 0.05e18; // 5% default
         maxOracleStaleness = 24 hours; // default -- equities don't need second-by-second freshness, but shouldn't be arbitrarily old either
+        lastAccrualTimestamp = block.timestamp;
     }
 
     function setRiskParams(uint256 newMaxLTV, uint256 newLiquidationThreshold) external onlyOwner {
@@ -126,17 +172,35 @@ contract Market is Ownable, ReentrancyGuard {
         emit MaxOracleStalenessUpdated(newMaxStaleness);
     }
 
-    /// @notice Permissionless: anyone can add debt-token liquidity, same as
-    /// depositing into a real lending pool. Standing in for a full ERC-4626
-    /// LenderVault, which is out of v1 scope (BUILD.md §4). NOT onlyOwner --
-    /// caught in live testing that it had inherited Ownable's restriction
-    /// by default, which would have meant routing routine liquidity
-    /// provisioning through the multisig+timelock every time. Adding
-    /// liquidity only ever benefits the pool; it doesn't let the caller
-    /// withdraw anyone else's funds or touch risk parameters, so there's
-    /// no reason to gate it at all.
-    function fundMarket(uint256 amount) external nonReentrant {
-        debtToken.safeTransferFrom(msg.sender, address(this), amount);
+    /// @notice Swappable per BUILD.md's roadmap note on risk config -- lets
+    /// governance retune the rate curve, or replace it entirely, without a
+    /// full Market redeploy.
+    function setInterestRateModel(address newModel) external onlyOwner {
+        if (newModel == address(0)) revert ZeroAddress();
+        accrueInterest(); // settle interest under the OLD model before switching curves
+        interestRateModel = InterestRateModel(newModel);
+        emit InterestRateModelUpdated(newModel);
+    }
+
+    function setReserveFactor(uint256 newReserveFactor) external onlyOwner {
+        if (newReserveFactor > MAX_RESERVE_FACTOR) revert InvalidReserveFactor();
+        accrueInterest(); // settle interest under the OLD factor before switching
+        reserveFactor = newReserveFactor;
+        emit ReserveFactorUpdated(newReserveFactor);
+    }
+
+    /// @notice Sends accrued protocol reserves out. Reserves are bookkeeping
+    /// on top of totalBorrows, not a separate cash pile -- withdrawing them
+    /// is still bounded by the vault's actual liquid cash, same as any
+    /// other draw against outstanding borrows.
+    function withdrawReserves(address to, uint256 amount) external onlyOwner nonReentrant {
+        if (to == address(0)) revert ZeroAddress();
+        accrueInterest();
+        if (amount > totalReserves) revert InsufficientReserves();
+        if (amount > debtToken.balanceOf(address(lenderVault))) revert InsufficientLiquidity();
+        totalReserves -= amount;
+        lenderVault.borrowCash(to, amount);
+        emit ReservesWithdrawn(to, amount);
     }
 
     function supply(uint256 amount) external nonReentrant whenSupplyOrBorrowAllowed {
@@ -153,18 +217,19 @@ contract Market is Ownable, ReentrancyGuard {
     /// If the position has debt, withdrawing raises risk (less collateral
     /// backing the same loan), so it's gated exactly like borrow(): market
     /// must be open, oracle must be fresh, and the position must stay within
-    /// maxLTV afterward.
+    /// maxLTV afterward -- using the freshly-accrued debt, not a stale figure.
     function withdraw(uint256 amount) external nonReentrant {
         if (amount == 0) revert ZeroAmount();
         Position storage pos = positions[msg.sender];
         if (amount > pos.collateral) revert InsufficientCollateral();
-
         uint256 newCollateral = pos.collateral - amount;
 
-        if (pos.debt > 0) {
+        accrueInterest();
+        uint256 syncedDebt = _syncUserDebt(msg.sender);
+        if (syncedDebt > 0) {
             if (!haltController.canSupplyOrBorrow()) revert MarketHalted();
             _requireFreshPrice();
-            if (pos.debt > _maxBorrowableNative(newCollateral)) revert ExceedsMaxLTV();
+            if (syncedDebt > _maxBorrowableNative(newCollateral)) revert ExceedsMaxLTV();
         }
 
         pos.collateral = newCollateral;
@@ -175,27 +240,37 @@ contract Market is Ownable, ReentrancyGuard {
 
     function borrow(uint256 amount) external nonReentrant whenSupplyOrBorrowAllowed {
         if (amount == 0) revert ZeroAmount();
+        accrueInterest();
         _requireFreshPrice();
+
+        uint256 availableCash = debtToken.balanceOf(address(lenderVault));
+        if (amount > availableCash) revert InsufficientLiquidity();
+
         Position storage pos = positions[msg.sender];
-        pos.debt += amount;
+        uint256 syncedDebt = _syncUserDebt(msg.sender);
+        uint256 newDebt = syncedDebt + amount;
+        if (newDebt > _maxBorrowableNative(pos.collateral)) revert ExceedsMaxLTV();
 
-        if (pos.debt > _maxBorrowableNative(pos.collateral)) revert ExceedsMaxLTV();
-
-        totalDebt += amount;
-        debtToken.safeTransfer(msg.sender, amount);
+        pos.principal = newDebt;
+        totalBorrows += amount;
+        lenderVault.borrowCash(msg.sender, amount);
         emit Borrowed(msg.sender, amount);
     }
 
     /// @notice Always allowed, even mid-halt -- repay only ever reduces risk.
     function repay(uint256 amount) external nonReentrant {
         if (amount == 0) revert ZeroAmount();
+        accrueInterest();
         Position storage pos = positions[msg.sender];
-        uint256 repayAmount = amount > pos.debt ? pos.debt : amount;
+        uint256 syncedDebt = _syncUserDebt(msg.sender);
+        uint256 repayAmount = amount > syncedDebt ? syncedDebt : amount;
         if (repayAmount == 0) revert ZeroAmount();
 
-        pos.debt -= repayAmount;
-        totalDebt -= repayAmount;
-        debtToken.safeTransferFrom(msg.sender, address(this), repayAmount);
+        pos.principal = syncedDebt - repayAmount;
+        totalBorrows -= repayAmount;
+        // Repayments go straight back into the vault -- Market never
+        // custodies debt-token cash itself, even momentarily.
+        debtToken.safeTransferFrom(msg.sender, address(lenderVault), repayAmount);
         emit Repaid(msg.sender, repayAmount);
     }
 
@@ -206,14 +281,16 @@ contract Market is Ownable, ReentrancyGuard {
     /// state is exactly when liquidating is most dangerous.
     function liquidate(address user, uint256 repayAmount) external nonReentrant {
         if (!haltController.canLiquidate()) revert MarketHalted();
+        accrueInterest();
         // Checked before isLiquidatable() so a stale/paused oracle always
         // surfaces as StaleOracle/OraclePausedDirectly, not a possibly-
         // misleading NotLiquidatable computed from frozen data.
         uint256 price = _requireFreshPrice();
+        Position storage pos = positions[user];
+        uint256 syncedDebt = _syncUserDebt(user);
         if (!isLiquidatable(user)) revert NotLiquidatable();
 
-        Position storage pos = positions[user];
-        uint256 maxRepay = (pos.debt * CLOSE_FACTOR) / WAD;
+        uint256 maxRepay = (syncedDebt * CLOSE_FACTOR) / WAD;
         uint256 actualRepay = repayAmount > maxRepay ? maxRepay : repayAmount;
         if (actualRepay == 0) revert ZeroAmount();
 
@@ -223,39 +300,150 @@ contract Market is Ownable, ReentrancyGuard {
         uint256 collateralSeized = _fromWad(collateralSeizedWad, collateralDecimals);
         if (collateralSeized > pos.collateral) collateralSeized = pos.collateral;
 
-        pos.debt -= actualRepay;
+        pos.principal = syncedDebt - actualRepay;
         pos.collateral -= collateralSeized;
-        totalDebt -= actualRepay;
+        totalBorrows -= actualRepay;
         totalCollateral -= collateralSeized;
 
-        debtToken.safeTransferFrom(msg.sender, address(this), actualRepay);
+        debtToken.safeTransferFrom(msg.sender, address(lenderVault), actualRepay);
         collateralToken.safeTransfer(msg.sender, collateralSeized);
         emit Liquidated(user, msg.sender, actualRepay, collateralSeized);
     }
 
+    /// @notice Permissionless. Settles global interest up to the current
+    /// block: advances borrowIndex, adds interest to totalBorrows, and
+    /// splits reserveFactor's share into totalReserves. A no-op (besides
+    /// bumping the timestamp) when nothing is owed, so a long idle period
+    /// with zero outstanding borrows never applies phantom interest once
+    /// someone finally does borrow.
+    function accrueInterest() public {
+        uint256 elapsed = block.timestamp - lastAccrualTimestamp;
+        if (elapsed == 0) return;
+        lastAccrualTimestamp = block.timestamp;
+        if (totalBorrows == 0) return;
+
+        uint256 cash = debtToken.balanceOf(address(lenderVault));
+        uint256 ratePerSecond = interestRateModel.getBorrowRatePerSecond(cash, totalBorrows);
+        (uint256 newIndex, uint256 newTotalBorrows, uint256 interestAccumulated, uint256 reservesAdded) =
+            _computeAccrual(borrowIndex, totalBorrows, ratePerSecond, elapsed);
+
+        borrowIndex = newIndex;
+        totalBorrows = newTotalBorrows;
+        totalReserves += reservesAdded;
+        emit InterestAccrued(interestAccumulated, reservesAdded, newIndex, newTotalBorrows);
+    }
+
+    /// @return Value owed to LenderVault shareholders: totalBorrows minus
+    /// reserves, both pending-accrual-inclusive. This is the exact figure
+    /// LenderVault.totalAssets() needs; kept as one shared view so there's
+    /// only one implementation of the accrual math to get right, used by
+    /// both the write path (accrueInterest) and every read path.
+    function lpOwedBorrowsView() external view returns (uint256) {
+        (, uint256 pendingTotalBorrows, uint256 pendingTotalReserves) = _pendingAccrual();
+        return pendingTotalBorrows - pendingTotalReserves;
+    }
+
+    /// @return A user's current debt, interest-inclusive, computed live --
+    /// accurate even if this position hasn't been touched since before the
+    /// last accrual elsewhere in the market.
+    function currentDebt(address user) external view returns (uint256) {
+        return _currentDebtView(user);
+    }
+
+    /// @notice Convenience view combining collateral with live debt. The
+    /// public positions mapping exposes principal/borrowIndexSnapshot
+    /// instead -- those are the lazy-accrual bookkeeping fields, not what
+    /// most callers actually want; this is the stable, always-current pair.
+    function getPosition(address user) external view returns (uint256 collateral, uint256 debt) {
+        collateral = positions[user].collateral;
+        debt = _currentDebtView(user);
+    }
+
     /// @return 18-decimal fixed point; type(uint256).max if the position has no debt.
     function healthFactor(address user) external view returns (uint256) {
-        Position memory pos = positions[user];
-        if (pos.debt == 0) return type(uint256).max;
-        uint256 debtWad = _toWad(pos.debt, debtDecimals);
+        uint256 debtNative = _currentDebtView(user);
+        if (debtNative == 0) return type(uint256).max;
+        uint256 debtWad = _toWad(debtNative, debtDecimals);
         // Equivalent to (collateralValueWad * liquidationThreshold / WAD) * WAD / debtWad,
         // but collapsing the intermediate /WAD * WAD round-trip avoids a
         // truncation step that redundant round-trip would otherwise cause.
-        return (_collateralValueWad(pos.collateral) * liquidationThreshold) / debtWad;
+        return (_collateralValueWad(positions[user].collateral) * liquidationThreshold) / debtWad;
     }
 
     function isLiquidatable(address user) public view returns (bool) {
-        Position memory pos = positions[user];
-        if (pos.debt == 0) return false;
-        uint256 maxBorrowAtLiqThresholdWad = (_collateralValueWad(pos.collateral) * liquidationThreshold) / WAD;
-        uint256 debtWad = _toWad(pos.debt, debtDecimals);
+        uint256 debtNative = _currentDebtView(user);
+        if (debtNative == 0) return false;
+        uint256 maxBorrowAtLiqThresholdWad = (_collateralValueWad(positions[user].collateral) * liquidationThreshold) / WAD;
+        uint256 debtWad = _toWad(debtNative, debtDecimals);
         return debtWad > maxBorrowAtLiqThresholdWad;
     }
 
     /// @notice True once total collateral value covers total debt -- what a
     /// keeper checks before calling HaltController.completeResume() post-CA.
     function isSystemSolvent() external view returns (bool) {
-        return _collateralValueWad(totalCollateral) >= _toWad(totalDebt, debtDecimals);
+        (, uint256 pendingTotalBorrows,) = _pendingAccrual();
+        return _collateralValueWad(totalCollateral) >= _toWad(pendingTotalBorrows, debtDecimals);
+    }
+
+    /// @notice Writes a position's principal/snapshot up to the CURRENT
+    /// global borrowIndex (which must already be fresh -- call
+    /// accrueInterest() first). After this, pos.principal IS the live debt.
+    /// @return The just-synced current debt, in debtToken's native decimals.
+    function _syncUserDebt(address user) internal returns (uint256) {
+        Position storage pos = positions[user];
+        if (pos.principal == 0) {
+            pos.borrowIndexSnapshot = borrowIndex;
+            return 0;
+        }
+        uint256 synced = (pos.principal * borrowIndex) / pos.borrowIndexSnapshot;
+        pos.principal = synced;
+        pos.borrowIndexSnapshot = borrowIndex;
+        return synced;
+    }
+
+    /// @return A user's debt as of right now, without writing anything --
+    /// uses the pending (not-yet-written) borrowIndex so this is correct
+    /// regardless of when this position, or the market globally, was last touched.
+    function _currentDebtView(address user) internal view returns (uint256) {
+        Position memory pos = positions[user];
+        if (pos.principal == 0) return 0;
+        (uint256 pendingIndex,,) = _pendingAccrual();
+        return (pos.principal * pendingIndex) / pos.borrowIndexSnapshot;
+    }
+
+    /// @dev What accrueInterest() would produce if called right now, without writing state.
+    function _pendingAccrual() internal view returns (uint256 pendingIndex, uint256 pendingTotalBorrows, uint256 pendingTotalReserves) {
+        uint256 elapsed = block.timestamp - lastAccrualTimestamp;
+        if (elapsed == 0 || totalBorrows == 0) return (borrowIndex, totalBorrows, totalReserves);
+        uint256 cash = debtToken.balanceOf(address(lenderVault));
+        uint256 ratePerSecond = interestRateModel.getBorrowRatePerSecond(cash, totalBorrows);
+        (uint256 newIndex, uint256 newTotalBorrows,, uint256 reservesAdded) =
+            _computeAccrual(borrowIndex, totalBorrows, ratePerSecond, elapsed);
+        return (newIndex, newTotalBorrows, totalReserves + reservesAdded);
+    }
+
+    /// @notice The one implementation of the accrual formula itself -- both
+    /// accrueInterest() (which writes the result) and _pendingAccrual()
+    /// (which only reads it) call this, so there's no second copy of this
+    /// math that could quietly drift out of sync with the first.
+    function _computeAccrual(uint256 currentIndex, uint256 currentTotalBorrows, uint256 ratePerSecond, uint256 elapsed)
+        internal
+        view
+        returns (uint256 newIndex, uint256 newTotalBorrows, uint256 interestAccumulated, uint256 reservesAdded)
+    {
+        if (elapsed == 0 || currentTotalBorrows == 0) {
+            return (currentIndex, currentTotalBorrows, 0, 0);
+        }
+        // Simple (linear) interest for the elapsed window between accrual
+        // ticks, re-anchored to the running index every tick -- the same
+        // approach Compound v2 uses. Approximates continuous compounding
+        // well as long as accrual happens reasonably often, which it does
+        // here since every state-changing call triggers it.
+        uint256 interestFactor = ratePerSecond * elapsed;
+        interestAccumulated = (currentTotalBorrows * interestFactor) / WAD;
+        reservesAdded = (interestAccumulated * reserveFactor) / WAD;
+        newTotalBorrows = currentTotalBorrows + interestAccumulated;
+        newIndex = currentIndex + (currentIndex * interestFactor) / WAD;
     }
 
     /// @return Max borrowable debt, in debtToken's native decimals.

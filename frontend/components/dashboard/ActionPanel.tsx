@@ -10,7 +10,7 @@ import {
   useWriteMarketWithdraw,
   useWriteMarketBorrow,
   useWriteMarketRepay,
-  useReadMarketPositions,
+  useReadMarketGetPosition,
   useReadHaltControllerCanSupplyOrBorrow,
 } from "@/lib/generated";
 import { CONTRACTS, USDG_DECIMALS, WNVDAX_DECIMALS } from "@/lib/contracts";
@@ -50,7 +50,7 @@ export function ActionPanel() {
 
   // Withdraw draws down supplied collateral, not wallet balance -- "Balance"
   // and "Max" need to reflect the position, not what's sitting in the wallet.
-  const { data: position, refetch: refetchPosition } = useReadMarketPositions({
+  const { data: position, refetch: refetchPosition } = useReadMarketGetPosition({
     address: CONTRACTS.market,
     args: address ? [address] : undefined,
     query: { enabled: !!address && tab === "withdraw", refetchInterval: 8_000 },
@@ -65,14 +65,15 @@ export function ActionPanel() {
     query: { enabled: !!address && config.needsApproval, refetchInterval: 8_000 },
   });
 
-  // Available to borrow == the market's own USDG balance -- fundMarket() and repay()
-  // add to it, borrow() and liquidate() draw it down. Checked up front so an
-  // undersupplied market fails with a clear message instead of an opaque wallet error.
+  // Available to borrow == the vault's own USDG balance -- cash actually
+  // lives in LenderVault, not Market; deposits/repayments add to it,
+  // borrow()/liquidate() draw it down. Checked up front so an undersupplied
+  // vault fails with a clear message instead of an opaque wallet error.
   const { data: availableLiquidity, refetch: refetchLiquidity } = useReadContract({
     address: CONTRACTS.usdg,
     abi: erc20Abi,
     functionName: "balanceOf",
-    args: [CONTRACTS.market],
+    args: [CONTRACTS.lenderVault],
     query: { enabled: tab === "borrow", refetchInterval: 8_000 },
   });
 

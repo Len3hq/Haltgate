@@ -4,6 +4,7 @@ import { HaltStatusBanner } from "@/components/dashboard/HaltStatusBanner";
 import { MarketOverview } from "@/components/dashboard/MarketOverview";
 import { PositionPanel } from "@/components/dashboard/PositionPanel";
 import { ActionPanel } from "@/components/dashboard/ActionPanel";
+import { EarnPanel } from "@/components/dashboard/EarnPanel";
 import { LiquidatePanel } from "@/components/dashboard/LiquidatePanel";
 import { ActivityFeed } from "@/components/dashboard/ActivityFeed";
 import { TestnetTools } from "@/components/dashboard/TestnetTools";
@@ -25,6 +26,7 @@ export default function DashboardPage() {
             <ActionPanel />
           </div>
           <div className="dash-fade-in dash-fade-in-2 space-y-4">
+            <EarnPanel />
             <LiquidatePanel />
             <ActivityFeed />
             <TestnetTools />

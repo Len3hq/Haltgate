@@ -4,6 +4,8 @@ pragma solidity ^0.8.26;
 import {Test} from "forge-std/Test.sol";
 import {Market} from "../../src/core/Market.sol";
 import {HaltController} from "../../src/core/HaltController.sol";
+import {LenderVault} from "../../src/core/LenderVault.sol";
+import {InterestRateModel} from "../../src/core/InterestRateModel.sol";
 import {MockPausableOracle} from "../../src/oracle/MockPausableOracle.sol";
 import {MockWrappedXStock} from "../../src/tokens/MockWrappedXStock.sol";
 import {MockUSDG} from "../../src/tokens/MockUSDG.sol";
@@ -18,6 +20,8 @@ import {MockUSDG} from "../../src/tokens/MockUSDG.sol";
 contract MarketOracleFreshnessTest is Test {
     Market market;
     HaltController controller;
+    LenderVault vault;
+    InterestRateModel irm;
     MockPausableOracle oracle;
     MockWrappedXStock wNVDAx;
     MockUSDG usdg;
@@ -32,11 +36,16 @@ contract MarketOracleFreshnessTest is Test {
         wNVDAx = new MockWrappedXStock(owner);
         usdg = new MockUSDG(owner, 18);
         controller = new HaltController(address(oracle), owner, keeper);
-        market = new Market(address(wNVDAx), address(usdg), address(oracle), address(controller), owner, 0.5e18, 0.55e18);
+        vault = new LenderVault(address(usdg), owner);
+        irm = new InterestRateModel(0, 0.1e18, 3.0e18, 0.8e18, owner);
+        market = new Market(
+            address(wNVDAx), address(usdg), address(oracle), address(controller), address(vault), address(irm), owner, 0.5e18, 0.55e18, 0
+        );
+        vault.setMarket(address(market));
 
         usdg.mint(owner, 100_000e18);
-        usdg.approve(address(market), type(uint256).max);
-        market.fundMarket(100_000e18);
+        usdg.approve(address(vault), type(uint256).max);
+        vault.deposit(100_000e18, owner);
 
         wNVDAx.mint(alice, 100e18);
         vm.stopPrank();

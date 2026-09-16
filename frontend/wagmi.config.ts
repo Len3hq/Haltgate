@@ -13,6 +13,8 @@ export default defineConfig({
       include: [
         "Market.sol/**",
         "HaltController.sol/**",
+        "LenderVault.sol/**",
+        "InterestRateModel.sol/**",
         "IPausableOracle.sol/**",
         "MockWrappedXStock.sol/**",
         "MockUSDG.sol/**",

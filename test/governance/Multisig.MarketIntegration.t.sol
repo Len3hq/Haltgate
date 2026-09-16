@@ -5,6 +5,8 @@ import {Test} from "forge-std/Test.sol";
 import {Multisig} from "../../src/governance/Multisig.sol";
 import {Market} from "../../src/core/Market.sol";
 import {HaltController} from "../../src/core/HaltController.sol";
+import {LenderVault} from "../../src/core/LenderVault.sol";
+import {InterestRateModel} from "../../src/core/InterestRateModel.sol";
 import {MockPausableOracle} from "../../src/oracle/MockPausableOracle.sol";
 import {MockWrappedXStock} from "../../src/tokens/MockWrappedXStock.sol";
 import {MockUSDG} from "../../src/tokens/MockUSDG.sol";
@@ -17,6 +19,8 @@ contract MultisigMarketIntegrationTest is Test {
     Multisig ms;
     Market market;
     HaltController controller;
+    LenderVault vault;
+    InterestRateModel irm;
     MockPausableOracle oracle;
     MockWrappedXStock wNVDAx;
     MockUSDG usdg;
@@ -32,7 +36,12 @@ contract MultisigMarketIntegrationTest is Test {
         wNVDAx = new MockWrappedXStock(deployer);
         usdg = new MockUSDG(deployer, 18);
         controller = new HaltController(address(oracle), deployer, deployer);
-        market = new Market(address(wNVDAx), address(usdg), address(oracle), address(controller), deployer, 0.5e18, 0.55e18);
+        vault = new LenderVault(address(usdg), deployer);
+        irm = new InterestRateModel(0, 0.1e18, 3.0e18, 0.8e18, deployer);
+        market = new Market(
+            address(wNVDAx), address(usdg), address(oracle), address(controller), address(vault), address(irm), deployer, 0.5e18, 0.55e18, 0
+        );
+        vault.setMarket(address(market));
 
         address[] memory signers = new address[](3);
         signers[0] = signer1;
