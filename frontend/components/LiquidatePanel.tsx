@@ -2,6 +2,7 @@
 
 import { useState, useMemo, useEffect } from "react";
 import { useAccount, useReadContract, useWriteContract, useWaitForTransactionReceipt } from "wagmi";
+import { useQueryClient } from "@tanstack/react-query";
 import { erc20Abi, parseUnits, isAddress, type Address } from "viem";
 import {
   useReadMarketIsLiquidatable,
@@ -17,6 +18,7 @@ export function LiquidatePanel() {
   const { address: connected } = useAccount();
   const [target, setTarget] = useState("");
   const [amount, setAmount] = useState("");
+  const queryClient = useQueryClient();
 
   const targetAddress = isAddress(target) ? (target as Address) : undefined;
 
@@ -63,8 +65,11 @@ export function LiquidatePanel() {
     if (approveReceipt.isSuccess) refetchAllowance();
   }, [approveReceipt.isSuccess, refetchAllowance]);
   useEffect(() => {
-    if (liquidateReceipt.isSuccess) setAmount("");
-  }, [liquidateReceipt.isSuccess]);
+    if (liquidateReceipt.isSuccess) {
+      setAmount("");
+      queryClient.invalidateQueries();
+    }
+  }, [liquidateReceipt.isSuccess, queryClient]);
 
   function handleApprove() {
     approve.writeContract({ address: CONTRACTS.usdg, abi: erc20Abi, functionName: "approve", args: [CONTRACTS.market, parsedAmount] });

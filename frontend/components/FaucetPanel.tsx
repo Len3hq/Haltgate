@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAccount, useWaitForTransactionReceipt } from "wagmi";
+import { useQueryClient } from "@tanstack/react-query";
 import { parseUnits, isAddress } from "viem";
 import { useReadMockWrappedXStockOwner, useWriteMockWrappedXStockMint } from "@/lib/generated";
 import { CONTRACTS, WNVDAX_DECIMALS } from "@/lib/contracts";
@@ -21,6 +22,11 @@ export function FaucetPanel() {
   const [amount, setAmount] = useState("10");
   const mint = useWriteMockWrappedXStockMint();
   const mintReceipt = useWaitForTransactionReceipt({ hash: mint.data });
+  const queryClient = useQueryClient();
+
+  useEffect(() => {
+    if (mintReceipt.isSuccess) queryClient.invalidateQueries();
+  }, [mintReceipt.isSuccess, queryClient]);
 
   function handleMint() {
     const to = recipient || address;

@@ -2,6 +2,7 @@
 
 import { useState, useMemo, useEffect } from "react";
 import { useAccount, useReadContract, useWriteContract, useWaitForTransactionReceipt } from "wagmi";
+import { useQueryClient } from "@tanstack/react-query";
 import { erc20Abi, parseUnits } from "viem";
 import {
   useWriteMarketSupply,
@@ -24,6 +25,7 @@ export function ActionPanel() {
   const { address, isConnected } = useAccount();
   const [tab, setTab] = useState<Tab>("supply");
   const [amount, setAmount] = useState("");
+  const queryClient = useQueryClient();
 
   const config = TAB_CONFIG[tab];
   const { data: canSupplyOrBorrow } = useReadHaltControllerCanSupplyOrBorrow({
@@ -48,6 +50,17 @@ export function ActionPanel() {
     query: { enabled: !!address && config.needsApproval, refetchInterval: 8_000 },
   });
 
+  // Available to borrow == the market's own USDG balance -- fundMarket() and repay()
+  // add to it, borrow() and liquidate() draw it down. Checked up front so an
+  // undersupplied market fails with a clear message instead of an opaque wallet error.
+  const { data: availableLiquidity, refetch: refetchLiquidity } = useReadContract({
+    address: CONTRACTS.usdg,
+    abi: erc20Abi,
+    functionName: "balanceOf",
+    args: [CONTRACTS.market],
+    query: { enabled: tab === "borrow", refetchInterval: 8_000 },
+  });
+
   const parsedAmount = useMemo(() => {
     if (!amount) return 0n;
     try {
@@ -58,6 +71,7 @@ export function ActionPanel() {
   }, [amount, config.decimals]);
 
   const needsApproval = config.needsApproval && (allowance ?? 0n) < parsedAmount;
+  const insufficientLiquidity = tab === "borrow" && availableLiquidity !== undefined && parsedAmount > availableLiquidity;
 
   const approve = useWriteContract();
   const approveReceipt = useWaitForTransactionReceipt({ hash: approve.data });
@@ -77,8 +91,13 @@ export function ActionPanel() {
       setAmount("");
       refetchBalance();
       refetchAllowance();
+      refetchLiquidity();
+      // Position, totals, and other panels poll independently -- invalidate
+      // everything so they reflect this tx immediately instead of waiting
+      // out their own interval (previously required a manual page refresh).
+      queryClient.invalidateQueries();
     }
-  }, [actionReceipt.isSuccess, refetchBalance, refetchAllowance]);
+  }, [actionReceipt.isSuccess, refetchBalance, refetchAllowance, refetchLiquidity, queryClient]);
 
   useEffect(() => {
     if (approveReceipt.isSuccess) refetchAllowance();
@@ -107,7 +126,7 @@ export function ActionPanel() {
   if (!isConnected) return null;
 
   const isBusy = approve.isPending || approveReceipt.isLoading || action.isPending || actionReceipt.isLoading;
-  const canSubmit = parsedAmount > 0n && !isBusy && !actionDisabledByHalt;
+  const canSubmit = parsedAmount > 0n && !isBusy && !actionDisabledByHalt && !insufficientLiquidity;
 
   return (
     <div className="rounded-[var(--radius-card)] border border-[var(--color-border)] bg-[var(--color-bg-card)] p-4">
@@ -131,6 +150,17 @@ export function ActionPanel() {
       {actionDisabledByHalt && (
         <p className="mt-3 rounded-[var(--radius-card)] bg-[var(--color-warning-bg)] px-3 py-2 text-xs text-[var(--color-warning)]">
           Market isn&apos;t open for {tab === "supply" ? "supply" : "borrowing"} right now -- see the status banner above.
+        </p>
+      )}
+
+      {tab === "borrow" && (
+        <p className="mt-3 text-xs text-[var(--color-text-muted)]">
+          Available to borrow: {formatAmount(availableLiquidity, USDG_DECIMALS)} USDG
+        </p>
+      )}
+      {insufficientLiquidity && (
+        <p className="mt-1 rounded-[var(--radius-card)] bg-[var(--color-warning-bg)] px-3 py-2 text-xs text-[var(--color-warning)]">
+          The market only has {formatAmount(availableLiquidity, USDG_DECIMALS)} USDG available right now -- lower the amount.
         </p>
       )}
 
