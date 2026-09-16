@@ -6,7 +6,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { parseUnits, isAddress } from "viem";
 import { useReadMockWrappedXStockOwner, useWriteMockWrappedXStockMint } from "@/lib/generated";
 import { CONTRACTS, WNVDAX_DECIMALS } from "@/lib/contracts";
-import { TxStatus } from "@/components/TxStatus";
+import { TxStatus } from "@/components/dashboard/TxStatus";
 
 // wNVDAx.mint() is onlyOwner (correctly -- a real collateral token
 // shouldn't let anyone mint it). Confirmed on-chain that the deployer is
@@ -39,10 +39,8 @@ export function FaucetPanel() {
   }
 
   return (
-    <div className="rounded-[var(--radius-card)] border border-[var(--color-border)] bg-[var(--color-bg-card)] p-4">
-      <p className="text-xs uppercase tracking-wide text-[var(--color-text-faint)]">Get Test Tokens</p>
-
-      <div className="mt-3 flex items-center justify-between rounded-[var(--radius-card)] bg-[var(--color-bg-elevated)] px-3 py-2.5">
+    <div>
+      <div className="flex items-center justify-between rounded-[var(--radius-card)] bg-[var(--color-bg-elevated)] px-3 py-2.5">
         <span className="text-sm text-[var(--color-text)]">USDG (real testnet token)</span>
         <a
           href="https://faucet.paxos.com/"

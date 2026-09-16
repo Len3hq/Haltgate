@@ -13,7 +13,7 @@ import {
 } from "@/lib/generated";
 import { CONTRACTS, USDG_DECIMALS } from "@/lib/contracts";
 import { getErrorMessage } from "@/lib/errors";
-import { TxStatus } from "@/components/TxStatus";
+import { TxStatus } from "@/components/dashboard/TxStatus";
 
 const MAX_UINT256 = (1n << 256n) - 1n;
 
@@ -69,7 +69,12 @@ export function LiquidatePanel() {
     args: targetAddress ? [targetAddress, parsedAmount] : undefined,
     query: { enabled: !!targetAddress && parsedAmount > 0n && !needsApproval },
   });
-  const simulationBlocked = parsedAmount > 0n && !needsApproval && !simulate.isPending && !!simulate.error;
+  const simulationActive = !!targetAddress && parsedAmount > 0n && !needsApproval;
+  // See ActionPanel: isPending stays true for a query that hasn't run yet,
+  // so the button must stay disabled through that whole window too, not
+  // just once an error lands -- otherwise a fast click can beat the check.
+  const simulationPending = simulationActive && simulate.isPending;
+  const simulationBlocked = simulationActive && !simulate.isPending && !!simulate.error;
 
   const approve = useWriteContract();
   const approveReceipt = useWaitForTransactionReceipt({ hash: approve.data });
@@ -161,10 +166,10 @@ export function LiquidatePanel() {
             <>
               <button
                 onClick={handleLiquidate}
-                disabled={parsedAmount === 0n || isBusy || canLiquidate === false || simulationBlocked}
+                disabled={parsedAmount === 0n || isBusy || canLiquidate === false || simulationPending || simulationBlocked}
                 className="mt-2 w-full rounded-[var(--radius-pill)] bg-[var(--color-accent)] py-2.5 text-sm font-semibold text-[var(--color-accent-fg)] disabled:opacity-50"
               >
-                {isBusy ? "Confirming..." : "Liquidate"}
+                {isBusy ? "Confirming..." : simulationPending ? "Checking..." : "Liquidate"}
               </button>
               {simulationBlocked && (
                 <p className="mt-2 rounded-[var(--radius-card)] bg-[var(--color-warning-bg)] px-3 py-2 text-xs text-[var(--color-warning)]">

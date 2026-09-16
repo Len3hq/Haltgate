@@ -16,7 +16,7 @@ import {
 import { CONTRACTS, USDG_DECIMALS, WNVDAX_DECIMALS } from "@/lib/contracts";
 import { formatAmount } from "@/lib/format";
 import { getErrorMessage } from "@/lib/errors";
-import { TxStatus } from "@/components/TxStatus";
+import { TxStatus } from "@/components/dashboard/TxStatus";
 
 type Tab = "supply" | "withdraw" | "borrow" | "repay";
 
@@ -162,8 +162,16 @@ export function ActionPanel() {
   if (!isConnected) return null;
 
   const isBusy = approve.isPending || approveReceipt.isLoading || action.isPending || actionReceipt.isLoading;
-  const simulationBlocked = parsedAmount > 0n && !needsApproval && !simulate.isPending && !!simulate.error;
-  const canSubmit = parsedAmount > 0n && !isBusy && !actionDisabledByHalt && !insufficientLiquidity && !simulationBlocked;
+  const simulationActive = parsedAmount > 0n && !needsApproval;
+  // isPending stays true, not false, for a query that hasn't run yet (e.g.
+  // disabled, or its key just changed) -- so "no error yet" during that
+  // window means "haven't checked yet," not "safe to submit." The button
+  // must stay disabled for that whole window, not just once an error lands,
+  // or a fast click right after typing can still reach the wallet unchecked.
+  const simulationPending = simulationActive && simulate.isPending;
+  const simulationBlocked = simulationActive && !simulate.isPending && !!simulate.error;
+  const canSubmit =
+    parsedAmount > 0n && !isBusy && !actionDisabledByHalt && !insufficientLiquidity && !simulationPending && !simulationBlocked;
 
   return (
     <div className="rounded-[var(--radius-card)] border border-[var(--color-border)] bg-[var(--color-bg-card)] p-4">
@@ -250,7 +258,7 @@ export function ActionPanel() {
             disabled={!canSubmit}
             className="mt-3 w-full rounded-[var(--radius-pill)] bg-[var(--color-accent)] py-2.5 text-sm font-semibold text-[var(--color-accent-fg)] disabled:opacity-50"
           >
-            {isBusy ? "Confirming..." : TAB_CONFIG[tab].label}
+            {isBusy ? "Confirming..." : simulationPending ? "Checking..." : TAB_CONFIG[tab].label}
           </button>
           {simulationBlocked && (
             <p className="mt-2 rounded-[var(--radius-card)] bg-[var(--color-warning-bg)] px-3 py-2 text-xs text-[var(--color-warning)]">

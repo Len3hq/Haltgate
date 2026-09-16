@@ -1,26 +1,23 @@
-import { Header } from "@/components/Header";
-import { NetworkGuard } from "@/components/NetworkGuard";
-import { HaltStatusBanner } from "@/components/HaltStatusBanner";
-import { MarketOverview } from "@/components/MarketOverview";
-import { PositionPanel } from "@/components/PositionPanel";
-import { ActionPanel } from "@/components/ActionPanel";
-import { LiquidatePanel } from "@/components/LiquidatePanel";
-import { FaucetPanel } from "@/components/FaucetPanel";
+import { LandingNav } from "@/components/landing/LandingNav";
+import { Hero } from "@/components/landing/Hero";
+import { HowItWorks } from "@/components/landing/HowItWorks";
+import { Features } from "@/components/landing/Features";
+import { GovernanceSection } from "@/components/landing/GovernanceSection";
+import { CTASection } from "@/components/landing/CTASection";
+import { Footer } from "@/components/landing/Footer";
 
-export default function Home() {
+export default function LandingPage() {
   return (
     <>
-      <Header />
-      <main className="mx-auto w-full max-w-4xl flex-1 space-y-6 px-4 py-6 sm:px-6">
-        <NetworkGuard>
-          <HaltStatusBanner />
-          <MarketOverview />
-          <PositionPanel />
-          <ActionPanel />
-          <LiquidatePanel />
-          <FaucetPanel />
-        </NetworkGuard>
+      <LandingNav />
+      <main className="flex-1">
+        <Hero />
+        <HowItWorks />
+        <Features />
+        <GovernanceSection />
+        <CTASection />
       </main>
+      <Footer />
     </>
   );
 }

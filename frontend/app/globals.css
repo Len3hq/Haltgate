@@ -27,6 +27,18 @@
 
   --radius-pill: 100px; /* matches OKX's real border-radius: 100px, used 126x in their bundle */
   --radius-card: 8px;
+  --radius-card-lg: 16px;
+
+  /* Dashboard density: 8-32px scale (UI Pro Max --density 8/10 dial), distinct
+     from the landing page's more spacious rhythm which uses raw Tailwind spacing. */
+  --space-xs: 8px;
+  --space-sm: 12px;
+  --space-md: 16px;
+  --space-lg: 24px;
+  --space-xl: 32px;
+
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.4), 0 8px 24px rgba(0, 0, 0, 0.24);
+  --shadow-accent-glow: 0 0 32px rgba(188, 255, 47, 0.16);
 }
 
 @theme inline {
@@ -49,11 +61,45 @@
   --color-warning-bg: var(--color-warning-bg);
   --radius-pill: var(--radius-pill);
   --radius-card: var(--radius-card);
+  --radius-card-lg: var(--radius-card-lg);
   --font-sans: var(--font-inter);
+  --font-display: var(--font-display);
 }
 
 body {
   background: var(--color-bg);
   color: var(--color-text);
   font-family: var(--font-sans), -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
+}
+
+@keyframes dash-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.dash-fade-in {
+  animation: dash-fade-in 400ms ease-out both;
+}
+.dash-fade-in-1 {
+  animation-delay: 60ms;
+}
+.dash-fade-in-2 {
+  animation-delay: 120ms;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
