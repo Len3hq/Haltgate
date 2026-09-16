@@ -1,6 +1,7 @@
 "use client";
 
 import { xLayerTestnet } from "@/lib/chains";
+import { getErrorMessage } from "@/lib/errors";
 
 const EXPLORER_TX_BASE = `${xLayerTestnet.blockExplorers.default.url}/tx/`;
 
@@ -26,7 +27,7 @@ export function TxStatus({
   successLabel = "Confirmed",
 }: TxStatusProps) {
   if (error) {
-    return <p className="mt-2 text-xs text-[var(--color-error)]">{error.message.split("\n")[0]}</p>;
+    return <p className="mt-2 text-xs text-[var(--color-error)]">{getErrorMessage(error)}</p>;
   }
 
   if (!isPending && !isConfirming && !isSuccess) return null;
