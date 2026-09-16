@@ -77,6 +77,77 @@ contract MarketTest is Test {
         assertEq(wNVDAx.balanceOf(address(market)), 10e18);
     }
 
+    function test_Withdraw_FullAmount_NoDebt() public {
+        vm.startPrank(alice);
+        market.supply(10e18);
+        market.withdraw(10e18);
+        vm.stopPrank();
+
+        (uint256 collateral,) = market.positions(alice);
+        assertEq(collateral, 0);
+        assertEq(market.totalCollateral(), 0);
+        assertEq(wNVDAx.balanceOf(alice), 100e18, "alice should have all her wNVDAx back");
+    }
+
+    function test_Withdraw_RevertsIfExceedsSuppliedCollateral() public {
+        vm.startPrank(alice);
+        market.supply(10e18);
+        vm.expectRevert(Market.InsufficientCollateral.selector);
+        market.withdraw(10e18 + 1);
+        vm.stopPrank();
+    }
+
+    function test_Withdraw_ZeroDebt_AllowedEvenWhenHalted() public {
+        vm.startPrank(alice);
+        market.supply(10e18);
+        vm.stopPrank();
+
+        vm.prank(owner);
+        oracle.pauseOracle();
+        controller.sync();
+
+        vm.prank(alice);
+        market.withdraw(10e18); // must not revert -- no debt, no risk to protect
+
+        (uint256 collateral,) = market.positions(alice);
+        assertEq(collateral, 0);
+    }
+
+    function test_Withdraw_WithDebt_StaysWithinLTV_Succeeds() public {
+        vm.startPrank(alice);
+        market.supply(10e18); // value 1800, borrow 500 well within 50%
+        market.borrow(500e18);
+        market.withdraw(2e18); // remaining 8e18 * 180 = 1440, still covers 500 debt at 50% LTV (max 720)
+        vm.stopPrank();
+
+        (uint256 collateral,) = market.positions(alice);
+        assertEq(collateral, 8e18);
+    }
+
+    function test_Withdraw_WithDebt_RevertsIfExceedsMaxLTV() public {
+        vm.startPrank(alice);
+        market.supply(10e18); // value 1800, borrow at exactly 50% max (900)
+        market.borrow(900e18);
+        vm.expectRevert(Market.ExceedsMaxLTV.selector);
+        market.withdraw(1e18); // remaining 9e18 * 180 = 1620, 50% = 810 < 900 debt
+        vm.stopPrank();
+    }
+
+    function test_Withdraw_WithDebt_RevertsWhenHalted() public {
+        vm.startPrank(alice);
+        market.supply(10e18);
+        market.borrow(500e18);
+        vm.stopPrank();
+
+        vm.prank(owner);
+        oracle.pauseOracle();
+        controller.sync();
+
+        vm.prank(alice);
+        vm.expectRevert(Market.MarketHalted.selector);
+        market.withdraw(1e18); // has debt -- withdrawing raises risk, must be gated like borrow
+    }
+
     function test_Borrow_WithinLTV() public {
         vm.startPrank(alice);
         market.supply(10e18); // 10 * 180 = 1800 USDG collateral value

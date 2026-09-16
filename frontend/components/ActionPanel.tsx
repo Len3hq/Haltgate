@@ -1,23 +1,28 @@
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
-import { useAccount, useReadContract, useWriteContract, useWaitForTransactionReceipt } from "wagmi";
+import { useAccount, useReadContract, useWriteContract, useWaitForTransactionReceipt, useSimulateContract } from "wagmi";
 import { useQueryClient } from "@tanstack/react-query";
 import { erc20Abi, parseUnits } from "viem";
 import {
+  marketAbi,
   useWriteMarketSupply,
+  useWriteMarketWithdraw,
   useWriteMarketBorrow,
   useWriteMarketRepay,
+  useReadMarketPositions,
   useReadHaltControllerCanSupplyOrBorrow,
 } from "@/lib/generated";
 import { CONTRACTS, USDG_DECIMALS, WNVDAX_DECIMALS } from "@/lib/contracts";
 import { formatAmount } from "@/lib/format";
+import { getErrorMessage } from "@/lib/errors";
 import { TxStatus } from "@/components/TxStatus";
 
-type Tab = "supply" | "borrow" | "repay";
+type Tab = "supply" | "withdraw" | "borrow" | "repay";
 
 const TAB_CONFIG: Record<Tab, { label: string; token: "wNVDAx" | "USDG"; tokenAddress: `0x${string}`; decimals: number; needsApproval: boolean }> = {
   supply: { label: "Supply", token: "wNVDAx", tokenAddress: CONTRACTS.wNVDAx, decimals: WNVDAX_DECIMALS, needsApproval: true },
+  withdraw: { label: "Withdraw", token: "wNVDAx", tokenAddress: CONTRACTS.wNVDAx, decimals: WNVDAX_DECIMALS, needsApproval: false },
   borrow: { label: "Borrow", token: "USDG", tokenAddress: CONTRACTS.usdg, decimals: USDG_DECIMALS, needsApproval: false },
   repay: { label: "Repay", token: "USDG", tokenAddress: CONTRACTS.usdg, decimals: USDG_DECIMALS, needsApproval: true },
 };
@@ -42,6 +47,15 @@ export function ActionPanel() {
     args: address ? [address] : undefined,
     query: { enabled: !!address, refetchInterval: 8_000 },
   });
+
+  // Withdraw draws down supplied collateral, not wallet balance -- "Balance"
+  // and "Max" need to reflect the position, not what's sitting in the wallet.
+  const { data: position, refetch: refetchPosition } = useReadMarketPositions({
+    address: CONTRACTS.market,
+    args: address ? [address] : undefined,
+    query: { enabled: !!address && tab === "withdraw", refetchInterval: 8_000 },
+  });
+  const suppliedCollateral = position?.[0];
 
   const { data: allowance, refetch: refetchAllowance } = useReadContract({
     address: config.tokenAddress,
@@ -74,18 +88,36 @@ export function ActionPanel() {
   const needsApproval = config.needsApproval && (allowance ?? 0n) < parsedAmount;
   const insufficientLiquidity = tab === "borrow" && availableLiquidity !== undefined && parsedAmount > availableLiquidity;
 
+  // Wallets run their own gas-estimation simulation before letting the user
+  // hit Confirm, and reverts show as a generic, undecoded "third-party
+  // contract execution error" banner inside the wallet's own UI -- our
+  // TxStatus decoding never gets a chance to run, because no tx is ever
+  // submitted for us to see an error on. Simulating the call ourselves,
+  // client-side, catches the same revert first and lets us show the decoded
+  // reason in-app, before the wallet ever opens.
+  const simulate = useSimulateContract({
+    address: CONTRACTS.market,
+    abi: marketAbi,
+    functionName: tab,
+    args: [parsedAmount],
+    query: { enabled: !!address && parsedAmount > 0n && !needsApproval },
+  });
+
   const approve = useWriteContract();
   const approveReceipt = useWaitForTransactionReceipt({ hash: approve.data });
 
   const supply = useWriteMarketSupply();
   const supplyReceipt = useWaitForTransactionReceipt({ hash: supply.data });
+  const withdraw = useWriteMarketWithdraw();
+  const withdrawReceipt = useWaitForTransactionReceipt({ hash: withdraw.data });
   const borrow = useWriteMarketBorrow();
   const borrowReceipt = useWaitForTransactionReceipt({ hash: borrow.data });
   const repay = useWriteMarketRepay();
   const repayReceipt = useWaitForTransactionReceipt({ hash: repay.data });
 
-  const action = tab === "supply" ? supply : tab === "borrow" ? borrow : repay;
-  const actionReceipt = tab === "supply" ? supplyReceipt : tab === "borrow" ? borrowReceipt : repayReceipt;
+  const action = tab === "supply" ? supply : tab === "withdraw" ? withdraw : tab === "borrow" ? borrow : repay;
+  const actionReceipt =
+    tab === "supply" ? supplyReceipt : tab === "withdraw" ? withdrawReceipt : tab === "borrow" ? borrowReceipt : repayReceipt;
 
   useEffect(() => {
     if (actionReceipt.isSuccess) {
@@ -93,12 +125,13 @@ export function ActionPanel() {
       refetchBalance();
       refetchAllowance();
       refetchLiquidity();
+      refetchPosition();
       // Position, totals, and other panels poll independently -- invalidate
       // everything so they reflect this tx immediately instead of waiting
       // out their own interval (previously required a manual page refresh).
       queryClient.invalidateQueries();
     }
-  }, [actionReceipt.isSuccess, refetchBalance, refetchAllowance, refetchLiquidity, queryClient]);
+  }, [actionReceipt.isSuccess, refetchBalance, refetchAllowance, refetchLiquidity, refetchPosition, queryClient]);
 
   useEffect(() => {
     if (approveReceipt.isSuccess) refetchAllowance();
@@ -115,19 +148,22 @@ export function ActionPanel() {
 
   function handleAction() {
     if (tab === "supply") supply.writeContract({ address: CONTRACTS.market, args: [parsedAmount] });
+    if (tab === "withdraw") withdraw.writeContract({ address: CONTRACTS.market, args: [parsedAmount] });
     if (tab === "borrow") borrow.writeContract({ address: CONTRACTS.market, args: [parsedAmount] });
     if (tab === "repay") repay.writeContract({ address: CONTRACTS.market, args: [parsedAmount] });
   }
 
   function handleMax() {
-    if (balance === undefined) return;
-    setAmount(formatMaxInput(balance, config.decimals));
+    const maxValue = tab === "withdraw" ? suppliedCollateral : balance;
+    if (maxValue === undefined) return;
+    setAmount(formatMaxInput(maxValue, config.decimals));
   }
 
   if (!isConnected) return null;
 
   const isBusy = approve.isPending || approveReceipt.isLoading || action.isPending || actionReceipt.isLoading;
-  const canSubmit = parsedAmount > 0n && !isBusy && !actionDisabledByHalt && !insufficientLiquidity;
+  const simulationBlocked = parsedAmount > 0n && !needsApproval && !simulate.isPending && !!simulate.error;
+  const canSubmit = parsedAmount > 0n && !isBusy && !actionDisabledByHalt && !insufficientLiquidity && !simulationBlocked;
 
   return (
     <div className="rounded-[var(--radius-card)] border border-[var(--color-border)] bg-[var(--color-bg-card)] p-4">
@@ -164,11 +200,16 @@ export function ActionPanel() {
           The market only has {formatAmount(availableLiquidity, USDG_DECIMALS)} USDG available right now -- lower the amount.
         </p>
       )}
+      {tab === "withdraw" && (
+        <p className="mt-3 text-xs text-[var(--color-text-muted)]">
+          If you have outstanding debt, you can only withdraw down to what keeps you within the max LTV.
+        </p>
+      )}
 
       <div className="mt-4 flex items-center justify-between text-xs text-[var(--color-text-muted)]">
         <span>Amount ({config.token})</span>
         <span>
-          Balance: {formatAmount(balance, config.decimals)}{" "}
+          {tab === "withdraw" ? "Supplied" : "Balance"}: {formatAmount(tab === "withdraw" ? suppliedCollateral : balance, config.decimals)}{" "}
           <button onClick={handleMax} className="text-[var(--color-accent)] hover:underline">
             Max
           </button>
@@ -211,6 +252,11 @@ export function ActionPanel() {
           >
             {isBusy ? "Confirming..." : TAB_CONFIG[tab].label}
           </button>
+          {simulationBlocked && (
+            <p className="mt-2 rounded-[var(--radius-card)] bg-[var(--color-warning-bg)] px-3 py-2 text-xs text-[var(--color-warning)]">
+              {getErrorMessage(simulate.error)}
+            </p>
+          )}
           <TxStatus
             hash={action.data}
             isPending={action.isPending}

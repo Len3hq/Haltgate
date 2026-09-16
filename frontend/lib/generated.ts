@@ -497,6 +497,13 @@ export const marketAbi = [
     stateMutability: 'nonpayable',
   },
   {
+    type: 'function',
+    inputs: [{ name: 'amount', internalType: 'uint256', type: 'uint256' }],
+    name: 'withdraw',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
     type: 'event',
     anonymous: false,
     inputs: [
@@ -627,6 +634,20 @@ export const marketAbi = [
       },
     ],
     name: 'Supplied',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      { name: 'user', internalType: 'address', type: 'address', indexed: true },
+      {
+        name: 'amount',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+    ],
+    name: 'Withdrawn',
   },
   { type: 'error', inputs: [], name: 'ExceedsMaxLTV' },
   { type: 'error', inputs: [], name: 'InsufficientCollateral' },
@@ -1684,6 +1705,14 @@ export const useWriteMarketTransferOwnership =
   })
 
 /**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link marketAbi}__ and `functionName` set to `"withdraw"`
+ */
+export const useWriteMarketWithdraw = /*#__PURE__*/ createUseWriteContract({
+  abi: marketAbi,
+  functionName: 'withdraw',
+})
+
+/**
  * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link marketAbi}__
  */
 export const useSimulateMarket = /*#__PURE__*/ createUseSimulateContract({
@@ -1778,6 +1807,15 @@ export const useSimulateMarketTransferOwnership =
   })
 
 /**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link marketAbi}__ and `functionName` set to `"withdraw"`
+ */
+export const useSimulateMarketWithdraw =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: marketAbi,
+    functionName: 'withdraw',
+  })
+
+/**
  * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link marketAbi}__
  */
 export const useWatchMarketEvent = /*#__PURE__*/ createUseWatchContractEvent({
@@ -1854,6 +1892,15 @@ export const useWatchMarketSuppliedEvent =
   /*#__PURE__*/ createUseWatchContractEvent({
     abi: marketAbi,
     eventName: 'Supplied',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link marketAbi}__ and `eventName` set to `"Withdrawn"`
+ */
+export const useWatchMarketWithdrawnEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: marketAbi,
+    eventName: 'Withdrawn',
   })
 
 /**

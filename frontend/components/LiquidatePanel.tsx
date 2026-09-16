@@ -1,16 +1,18 @@
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
-import { useAccount, useReadContract, useWriteContract, useWaitForTransactionReceipt } from "wagmi";
+import { useAccount, useReadContract, useWriteContract, useWaitForTransactionReceipt, useSimulateContract } from "wagmi";
 import { useQueryClient } from "@tanstack/react-query";
 import { erc20Abi, parseUnits, isAddress, type Address } from "viem";
 import {
+  marketAbi,
   useReadMarketIsLiquidatable,
   useReadMarketHealthFactor,
   useReadHaltControllerCanLiquidate,
   useWriteMarketLiquidate,
 } from "@/lib/generated";
 import { CONTRACTS, USDG_DECIMALS } from "@/lib/contracts";
+import { getErrorMessage } from "@/lib/errors";
 import { TxStatus } from "@/components/TxStatus";
 
 const MAX_UINT256 = (1n << 256n) - 1n;
@@ -56,6 +58,18 @@ export function LiquidatePanel() {
   }, [amount]);
 
   const needsApproval = (allowance ?? 0n) < parsedAmount;
+
+  // Same reasoning as ActionPanel: catch reverts (stale oracle, close-factor
+  // edge cases, etc.) ourselves before the wallet's own pre-flight gas
+  // estimation blocks the user with an undecoded generic error.
+  const simulate = useSimulateContract({
+    address: CONTRACTS.market,
+    abi: marketAbi,
+    functionName: "liquidate",
+    args: targetAddress ? [targetAddress, parsedAmount] : undefined,
+    query: { enabled: !!targetAddress && parsedAmount > 0n && !needsApproval },
+  });
+  const simulationBlocked = parsedAmount > 0n && !needsApproval && !simulate.isPending && !!simulate.error;
 
   const approve = useWriteContract();
   const approveReceipt = useWaitForTransactionReceipt({ hash: approve.data });
@@ -147,11 +161,16 @@ export function LiquidatePanel() {
             <>
               <button
                 onClick={handleLiquidate}
-                disabled={parsedAmount === 0n || isBusy || canLiquidate === false}
+                disabled={parsedAmount === 0n || isBusy || canLiquidate === false || simulationBlocked}
                 className="mt-2 w-full rounded-[var(--radius-pill)] bg-[var(--color-accent)] py-2.5 text-sm font-semibold text-[var(--color-accent-fg)] disabled:opacity-50"
               >
                 {isBusy ? "Confirming..." : "Liquidate"}
               </button>
+              {simulationBlocked && (
+                <p className="mt-2 rounded-[var(--radius-card)] bg-[var(--color-warning-bg)] px-3 py-2 text-xs text-[var(--color-warning)]">
+                  {getErrorMessage(simulate.error)}
+                </p>
+              )}
               <TxStatus
                 hash={liquidate.data}
                 isPending={liquidate.isPending}

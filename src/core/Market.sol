@@ -59,6 +59,7 @@ contract Market is Ownable, ReentrancyGuard {
     uint256 public totalDebt;
 
     event Supplied(address indexed user, uint256 amount);
+    event Withdrawn(address indexed user, uint256 amount);
     event Borrowed(address indexed user, uint256 amount);
     event Repaid(address indexed user, uint256 amount);
     event Liquidated(address indexed user, address indexed liquidator, uint256 debtRepaid, uint256 collateralSeized);
@@ -144,6 +145,32 @@ contract Market is Ownable, ReentrancyGuard {
         totalCollateral += amount;
         collateralToken.safeTransferFrom(msg.sender, address(this), amount);
         emit Supplied(msg.sender, amount);
+    }
+
+    /// @notice Withdraw supplied collateral. If the position carries no debt,
+    /// this is always allowed, even mid-halt -- there's no loan to protect,
+    /// so it carries the same "only ever reduces risk" reasoning as repay().
+    /// If the position has debt, withdrawing raises risk (less collateral
+    /// backing the same loan), so it's gated exactly like borrow(): market
+    /// must be open, oracle must be fresh, and the position must stay within
+    /// maxLTV afterward.
+    function withdraw(uint256 amount) external nonReentrant {
+        if (amount == 0) revert ZeroAmount();
+        Position storage pos = positions[msg.sender];
+        if (amount > pos.collateral) revert InsufficientCollateral();
+
+        uint256 newCollateral = pos.collateral - amount;
+
+        if (pos.debt > 0) {
+            if (!haltController.canSupplyOrBorrow()) revert MarketHalted();
+            _requireFreshPrice();
+            if (pos.debt > _maxBorrowableNative(newCollateral)) revert ExceedsMaxLTV();
+        }
+
+        pos.collateral = newCollateral;
+        totalCollateral -= amount;
+        collateralToken.safeTransfer(msg.sender, amount);
+        emit Withdrawn(msg.sender, amount);
     }
 
     function borrow(uint256 amount) external nonReentrant whenSupplyOrBorrowAllowed {
