@@ -49,6 +49,24 @@ contract MarketTest is Test {
         usdg.approve(address(market), type(uint256).max);
     }
 
+    function test_FundMarket_PermissionlessAnyoneCanAddLiquidity() public {
+        // Caught in live testnet testing: fundMarket() had inherited
+        // Ownable's onlyOwner by default, meaning routine liquidity
+        // provisioning would have had to go through governance every time.
+        // Fixed at the source; this proves a non-owner can now fund it.
+        vm.prank(owner);
+        usdg.mint(alice, 1_000e18);
+        vm.prank(alice);
+        usdg.approve(address(market), 1_000e18);
+
+        uint256 balanceBefore = market.totalCollateral(); // sanity, unrelated to debt token balance
+        vm.prank(alice);
+        market.fundMarket(1_000e18);
+
+        assertEq(usdg.balanceOf(address(market)), 100_000e18 + 1_000e18, "market's USDG balance should include alice's deposit");
+        assertEq(market.totalCollateral(), balanceBefore, "fundMarket must not affect collateral accounting");
+    }
+
     function test_Supply() public {
         vm.prank(alice);
         market.supply(10e18);

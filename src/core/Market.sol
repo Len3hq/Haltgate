@@ -125,9 +125,16 @@ contract Market is Ownable, ReentrancyGuard {
         emit MaxOracleStalenessUpdated(newMaxStaleness);
     }
 
-    /// @notice Seeds market liquidity for the demo. Standing in for a
-    /// full ERC-4626 LenderVault, which is out of v1 scope (BUILD.md §4).
-    function fundMarket(uint256 amount) external onlyOwner nonReentrant {
+    /// @notice Permissionless: anyone can add debt-token liquidity, same as
+    /// depositing into a real lending pool. Standing in for a full ERC-4626
+    /// LenderVault, which is out of v1 scope (BUILD.md §4). NOT onlyOwner --
+    /// caught in live testing that it had inherited Ownable's restriction
+    /// by default, which would have meant routing routine liquidity
+    /// provisioning through the multisig+timelock every time. Adding
+    /// liquidity only ever benefits the pool; it doesn't let the caller
+    /// withdraw anyone else's funds or touch risk parameters, so there's
+    /// no reason to gate it at all.
+    function fundMarket(uint256 amount) external nonReentrant {
         debtToken.safeTransferFrom(msg.sender, address(this), amount);
     }
 
