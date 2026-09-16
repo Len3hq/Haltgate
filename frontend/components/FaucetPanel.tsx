@@ -6,6 +6,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { parseUnits, isAddress } from "viem";
 import { useReadMockWrappedXStockOwner, useWriteMockWrappedXStockMint } from "@/lib/generated";
 import { CONTRACTS, WNVDAX_DECIMALS } from "@/lib/contracts";
+import { TxStatus } from "@/components/TxStatus";
 
 // wNVDAx.mint() is onlyOwner (correctly -- a real collateral token
 // shouldn't let anyone mint it). Confirmed on-chain that the deployer is
@@ -83,8 +84,14 @@ export function FaucetPanel() {
                 {mint.isPending || mintReceipt.isLoading ? "Minting..." : "Mint"}
               </button>
             </div>
-            {mintReceipt.isSuccess && <p className="mt-2 text-xs text-[var(--color-success)]">Minted.</p>}
-            {mint.error && <p className="mt-2 text-xs text-[var(--color-error)]">{mint.error.message.split("\n")[0]}</p>}
+            <TxStatus
+              hash={mint.data}
+              isPending={mint.isPending}
+              isConfirming={mintReceipt.isLoading}
+              isSuccess={mintReceipt.isSuccess}
+              error={mint.error}
+              successLabel="Minted."
+            />
           </div>
         ) : (
           <div className="flex items-center justify-between rounded-[var(--radius-card)] bg-[var(--color-bg-elevated)] px-3 py-2.5">

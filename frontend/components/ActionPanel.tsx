@@ -12,6 +12,7 @@ import {
 } from "@/lib/generated";
 import { CONTRACTS, USDG_DECIMALS, WNVDAX_DECIMALS } from "@/lib/contracts";
 import { formatAmount } from "@/lib/format";
+import { TxStatus } from "@/components/TxStatus";
 
 type Tab = "supply" | "borrow" | "repay";
 
@@ -183,26 +184,42 @@ export function ActionPanel() {
       />
 
       {needsApproval ? (
-        <button
-          onClick={handleApprove}
-          disabled={parsedAmount === 0n || approve.isPending || approveReceipt.isLoading}
-          className="mt-3 w-full rounded-[var(--radius-pill)] bg-[var(--color-accent)] py-2.5 text-sm font-semibold text-[var(--color-accent-fg)] disabled:opacity-50"
-        >
-          {approve.isPending || approveReceipt.isLoading ? "Approving..." : `Approve ${config.token}`}
-        </button>
+        <>
+          <button
+            onClick={handleApprove}
+            disabled={parsedAmount === 0n || approve.isPending || approveReceipt.isLoading}
+            className="mt-3 w-full rounded-[var(--radius-pill)] bg-[var(--color-accent)] py-2.5 text-sm font-semibold text-[var(--color-accent-fg)] disabled:opacity-50"
+          >
+            {approve.isPending || approveReceipt.isLoading ? "Approving..." : `Approve ${config.token}`}
+          </button>
+          <TxStatus
+            hash={approve.data}
+            isPending={approve.isPending}
+            isConfirming={approveReceipt.isLoading}
+            isSuccess={approveReceipt.isSuccess}
+            error={approve.error}
+            pendingLabel="Confirm approval in wallet..."
+            successLabel="Approved -- you can now submit the transaction below."
+          />
+        </>
       ) : (
-        <button
-          onClick={handleAction}
-          disabled={!canSubmit}
-          className="mt-3 w-full rounded-[var(--radius-pill)] bg-[var(--color-accent)] py-2.5 text-sm font-semibold text-[var(--color-accent-fg)] disabled:opacity-50"
-        >
-          {isBusy ? "Confirming..." : TAB_CONFIG[tab].label}
-        </button>
+        <>
+          <button
+            onClick={handleAction}
+            disabled={!canSubmit}
+            className="mt-3 w-full rounded-[var(--radius-pill)] bg-[var(--color-accent)] py-2.5 text-sm font-semibold text-[var(--color-accent-fg)] disabled:opacity-50"
+          >
+            {isBusy ? "Confirming..." : TAB_CONFIG[tab].label}
+          </button>
+          <TxStatus
+            hash={action.data}
+            isPending={action.isPending}
+            isConfirming={actionReceipt.isLoading}
+            isSuccess={actionReceipt.isSuccess}
+            error={action.error}
+          />
+        </>
       )}
-
-      {action.error && <p className="mt-2 text-xs text-[var(--color-error)]">{action.error.message.split("\n")[0]}</p>}
-      {approve.error && <p className="mt-2 text-xs text-[var(--color-error)]">{approve.error.message.split("\n")[0]}</p>}
-      {actionReceipt.isSuccess && <p className="mt-2 text-xs text-[var(--color-success)]">Confirmed.</p>}
     </div>
   );
 }

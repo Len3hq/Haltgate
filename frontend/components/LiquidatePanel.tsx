@@ -11,6 +11,7 @@ import {
   useWriteMarketLiquidate,
 } from "@/lib/generated";
 import { CONTRACTS, USDG_DECIMALS } from "@/lib/contracts";
+import { TxStatus } from "@/components/TxStatus";
 
 const MAX_UINT256 = (1n << 256n) - 1n;
 
@@ -124,24 +125,43 @@ export function LiquidatePanel() {
             className="w-full rounded-[var(--radius-card)] border border-[var(--color-border)] bg-[var(--color-bg-elevated)] px-3 py-2 text-sm text-[var(--color-text)] outline-none focus:border-[var(--color-accent)]"
           />
           {needsApproval ? (
-            <button
-              onClick={handleApprove}
-              disabled={parsedAmount === 0n || isBusy}
-              className="mt-2 w-full rounded-[var(--radius-pill)] bg-[var(--color-accent)] py-2.5 text-sm font-semibold text-[var(--color-accent-fg)] disabled:opacity-50"
-            >
-              {isBusy ? "Approving..." : "Approve USDG"}
-            </button>
+            <>
+              <button
+                onClick={handleApprove}
+                disabled={parsedAmount === 0n || isBusy}
+                className="mt-2 w-full rounded-[var(--radius-pill)] bg-[var(--color-accent)] py-2.5 text-sm font-semibold text-[var(--color-accent-fg)] disabled:opacity-50"
+              >
+                {isBusy ? "Approving..." : "Approve USDG"}
+              </button>
+              <TxStatus
+                hash={approve.data}
+                isPending={approve.isPending}
+                isConfirming={approveReceipt.isLoading}
+                isSuccess={approveReceipt.isSuccess}
+                error={approve.error}
+                pendingLabel="Confirm approval in wallet..."
+                successLabel="Approved -- you can now liquidate below."
+              />
+            </>
           ) : (
-            <button
-              onClick={handleLiquidate}
-              disabled={parsedAmount === 0n || isBusy || canLiquidate === false}
-              className="mt-2 w-full rounded-[var(--radius-pill)] bg-[var(--color-accent)] py-2.5 text-sm font-semibold text-[var(--color-accent-fg)] disabled:opacity-50"
-            >
-              {isBusy ? "Confirming..." : "Liquidate"}
-            </button>
+            <>
+              <button
+                onClick={handleLiquidate}
+                disabled={parsedAmount === 0n || isBusy || canLiquidate === false}
+                className="mt-2 w-full rounded-[var(--radius-pill)] bg-[var(--color-accent)] py-2.5 text-sm font-semibold text-[var(--color-accent-fg)] disabled:opacity-50"
+              >
+                {isBusy ? "Confirming..." : "Liquidate"}
+              </button>
+              <TxStatus
+                hash={liquidate.data}
+                isPending={liquidate.isPending}
+                isConfirming={liquidateReceipt.isLoading}
+                isSuccess={liquidateReceipt.isSuccess}
+                error={liquidate.error}
+                successLabel="Liquidated."
+              />
+            </>
           )}
-          {liquidate.error && <p className="mt-2 text-xs text-[var(--color-error)]">{liquidate.error.message.split("\n")[0]}</p>}
-          {liquidateReceipt.isSuccess && <p className="mt-2 text-xs text-[var(--color-success)]">Liquidated.</p>}
         </div>
       )}
     </div>
