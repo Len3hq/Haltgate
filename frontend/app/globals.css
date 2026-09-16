@@ -1,0 +1,59 @@
+@import "tailwindcss";
+
+/* Design tokens extracted directly from OKX's own live CSS (web3.okx.com/xlayer)
+   and xstocks.fi -- not approximated. Dark-first, matching both references'
+   actual default theme. */
+:root {
+  --color-bg: #121212; /* OKX's real dark-theme surface, confirmed via theme-dark class */
+  --color-bg-elevated: #1a1a1a;
+  --color-bg-card: #1d1d1d;
+  --color-border: #383838;
+  --color-border-subtle: #272727;
+
+  --color-text: #ffffff;
+  --color-text-muted: #b0b0b0;
+  --color-text-faint: #6c6c6c;
+
+  --color-accent: #bcff2f; /* OKX's signature lime green -- 30 occurrences in their bundle */
+  --color-accent-fg: #121212; /* text color on top of the accent */
+  --color-accent-blue: #0569ff; /* secondary / DeFi-specific accent */
+
+  --color-success: #25a750;
+  --color-success-bg: #0c5025;
+  --color-error: #f5384f;
+  --color-error-bg: #602031;
+  --color-warning: #eaa900;
+  --color-warning-bg: #3d3d3d;
+
+  --radius-pill: 100px; /* matches OKX's real border-radius: 100px, used 126x in their bundle */
+  --radius-card: 8px;
+}
+
+@theme inline {
+  --color-bg: var(--color-bg);
+  --color-bg-elevated: var(--color-bg-elevated);
+  --color-bg-card: var(--color-bg-card);
+  --color-border: var(--color-border);
+  --color-border-subtle: var(--color-border-subtle);
+  --color-text: var(--color-text);
+  --color-text-muted: var(--color-text-muted);
+  --color-text-faint: var(--color-text-faint);
+  --color-accent: var(--color-accent);
+  --color-accent-fg: var(--color-accent-fg);
+  --color-accent-blue: var(--color-accent-blue);
+  --color-success: var(--color-success);
+  --color-success-bg: var(--color-success-bg);
+  --color-error: var(--color-error);
+  --color-error-bg: var(--color-error-bg);
+  --color-warning: var(--color-warning);
+  --color-warning-bg: var(--color-warning-bg);
+  --radius-pill: var(--radius-pill);
+  --radius-card: var(--radius-card);
+  --font-sans: var(--font-inter);
+}
+
+body {
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-sans), -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
+}
