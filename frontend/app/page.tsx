@@ -3,6 +3,8 @@ import { HaltStatusBanner } from "@/components/HaltStatusBanner";
 import { MarketOverview } from "@/components/MarketOverview";
 import { PositionPanel } from "@/components/PositionPanel";
 import { ActionPanel } from "@/components/ActionPanel";
+import { LiquidatePanel } from "@/components/LiquidatePanel";
+import { FaucetPanel } from "@/components/FaucetPanel";
 
 export default function Home() {
   return (
@@ -13,6 +15,8 @@ export default function Home() {
         <MarketOverview />
         <PositionPanel />
         <ActionPanel />
+        <LiquidatePanel />
+        <FaucetPanel />
       </main>
     </>
   );
