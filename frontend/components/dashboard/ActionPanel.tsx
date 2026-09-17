@@ -48,14 +48,20 @@ export function ActionPanel() {
     query: { enabled: !!address, refetchInterval: 8_000 },
   });
 
-  // Withdraw draws down supplied collateral, not wallet balance -- "Balance"
-  // and "Max" need to reflect the position, not what's sitting in the wallet.
+  // Withdraw draws down supplied collateral and Repay pays off debt --
+  // neither one is bounded by wallet balance, so "Max" for both needs to
+  // reflect the position, not what's sitting in the wallet. (Repay's debt
+  // figure can drift a few seconds stale between polls since interest
+  // accrues continuously; the contract caps repayAmount at whatever the
+  // live debt actually is at submission time, so a stale Max just means
+  // repaying a hair under 100% rather than erroring.)
   const { data: position, refetch: refetchPosition } = useReadMarketGetPosition({
     address: CONTRACTS.market,
     args: address ? [address] : undefined,
-    query: { enabled: !!address && tab === "withdraw", refetchInterval: 8_000 },
+    query: { enabled: !!address && (tab === "withdraw" || tab === "repay"), refetchInterval: 8_000 },
   });
   const suppliedCollateral = position?.[0];
+  const currentDebt = position?.[1];
 
   const { data: allowance, refetch: refetchAllowance } = useReadContract({
     address: config.tokenAddress,
@@ -155,7 +161,7 @@ export function ActionPanel() {
   }
 
   function handleMax() {
-    const maxValue = tab === "withdraw" ? suppliedCollateral : balance;
+    const maxValue = tab === "withdraw" ? suppliedCollateral : tab === "repay" ? currentDebt : balance;
     if (maxValue === undefined) return;
     setAmount(formatMaxInput(maxValue, config.decimals));
   }
@@ -218,7 +224,8 @@ export function ActionPanel() {
       <div className="mt-4 flex items-center justify-between text-xs text-[var(--color-text-muted)]">
         <span>Amount ({config.token})</span>
         <span>
-          {tab === "withdraw" ? "Supplied" : "Balance"}: {formatAmount(tab === "withdraw" ? suppliedCollateral : balance, config.decimals)}{" "}
+          {tab === "withdraw" ? "Supplied" : tab === "repay" ? "Owed" : "Balance"}:{" "}
+          {formatAmount(tab === "withdraw" ? suppliedCollateral : tab === "repay" ? currentDebt : balance, config.decimals)}{" "}
           <button onClick={handleMax} className="text-[var(--color-accent)] hover:underline">
             Max
           </button>
