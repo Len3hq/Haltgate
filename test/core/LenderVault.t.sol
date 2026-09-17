@@ -209,6 +209,100 @@ contract LenderVaultTest is Test {
         freshVault.setMarket(address(market));
     }
 
+    // --- Halt-gating: found in a live audit that withdrawals had zero
+    // HaltController awareness, letting LPs exit at a stale, frozen share
+    // price during exactly the window a corporate action's outcome is
+    // unresolved -- while every borrower-side action was correctly frozen.
+    // maxRedeem() now reuses canLiquidate()'s exact OPEN-only condition. ---
+
+    function test_MaxRedeem_IsZero_WhenHalted() public {
+        vm.prank(lp1);
+        vault.deposit(1_000e18, lp1);
+
+        vm.prank(owner);
+        oracle.pauseOracle();
+        controller.sync(); // OPEN -> HALTED
+        assertEq(uint8(controller.state()), uint8(HaltController.MarketState.HALTED));
+
+        assertEq(vault.maxRedeem(lp1), 0, "no redemptions should be possible while halted, even with ample idle cash");
+        assertEq(vault.maxWithdraw(lp1), 0, "maxWithdraw must reflect the same block via composition");
+    }
+
+    function test_Redeem_RevertsWhenHalted_EvenWithAmpleIdleCash() public {
+        // The exact bank-run scenario: plenty of cash sitting idle (nobody
+        // ever borrowed it), yet a halt must still block the exit -- the
+        // point isn't liquidity, it's that the position's true value is
+        // unresolved during the halt.
+        vm.prank(lp1);
+        uint256 shares = vault.deposit(1_000e18, lp1);
+        assertEq(usdg.balanceOf(address(vault)), 1_000e18, "sanity: all of it is idle cash, nothing lent out");
+
+        vm.prank(owner);
+        oracle.pauseOracle();
+        controller.sync();
+
+        vm.prank(lp1);
+        vm.expectRevert();
+        vault.redeem(shares, lp1, lp1);
+
+        vm.prank(lp1);
+        vm.expectRevert();
+        vault.withdraw(500e18, lp1, lp1);
+    }
+
+    function test_MaxRedeem_IsZero_DuringHaltingAndResuming_NotJustHalted() public {
+        // Matches canLiquidate()'s own OPEN-only bar exactly -- withdrawals
+        // are blocked through the whole non-OPEN window, not just the
+        // deepest part of it, since RESUMING still has liquidations paused
+        // for the same "just-resumed data is dangerous" reason.
+        vm.prank(lp1);
+        vault.deposit(1_000e18, lp1);
+
+        vm.prank(owner);
+        oracle.pauseOracle();
+        controller.sync(); // -> HALTED
+        vm.prank(owner);
+        oracle.resumeOracle(NVDA_PRICE);
+        controller.sync(); // -> RESUMING
+        assertEq(uint8(controller.state()), uint8(HaltController.MarketState.RESUMING));
+
+        assertEq(vault.maxRedeem(lp1), 0, "resuming must still block withdrawals, matching canLiquidate()'s own bar");
+    }
+
+    function test_Deposit_StillAllowed_WhenHalted() public {
+        // Deposits only ever add liquidity -- never a risk to anyone but the
+        // depositor -- so they stay open throughout, same reasoning as
+        // Market.repay() being always-allowed.
+        vm.prank(owner);
+        oracle.pauseOracle();
+        controller.sync();
+
+        vm.prank(lp1);
+        uint256 shares = vault.deposit(1_000e18, lp1);
+        assertGt(shares, 0, "deposits must still work while halted");
+    }
+
+    function test_MaxRedeem_RestoredAfterMarketReopens() public {
+        vm.prank(lp1);
+        uint256 shares = vault.deposit(1_000e18, lp1);
+
+        vm.prank(owner);
+        oracle.pauseOracle();
+        controller.sync();
+        assertEq(vault.maxRedeem(lp1), 0);
+
+        vm.prank(owner);
+        oracle.resumeOracle(NVDA_PRICE);
+        controller.sync(); // -> RESUMING
+        vm.prank(keeper);
+        controller.completeResume(); // -> OPEN
+        assertEq(uint8(controller.state()), uint8(HaltController.MarketState.OPEN));
+
+        assertEq(vault.maxRedeem(lp1), shares, "full redemption must be available again once fully OPEN");
+        vm.prank(lp1);
+        vault.redeem(shares, lp1, lp1); // must not revert
+    }
+
     function test_MultipleLPs_ShareYieldProportionally() public {
         vm.prank(lp1);
         vault.deposit(1_000e18, lp1); // lp1 in first, alone

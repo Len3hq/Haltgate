@@ -88,7 +88,21 @@ contract LenderVault is ERC4626, Ownable, ReentrancyGuard {
     /// Per OZ's own guidance, overriding maxRedeem alone is sufficient:
     /// maxWithdraw's default implementation is previewRedeem(maxRedeem(...)),
     /// which picks up this override automatically through virtual dispatch.
+    ///
+    /// Also zero whenever the market isn't fully OPEN -- reuses
+    /// HaltController.canLiquidate()'s exact condition rather than inventing
+    /// a parallel one, since liquidation is literally the mechanism that
+    /// resolves the same uncertainty a halt creates. Found in a live audit:
+    /// every borrower-side action (borrow, liquidate, new interest) was
+    /// correctly frozen during a halt, but withdrawals here were not --
+    /// letting LPs exit at a stale, frozen share price ahead of any bad debt
+    /// a corporate action might reveal on resume, while depositors slower to
+    /// react absorbed a disproportionate share of whatever was left. Deposits
+    /// stay unrestricted throughout: adding liquidity only ever helps, the
+    /// same reasoning Market.supply()/repay() already rely on for actions
+    /// that can't hurt anyone but the caller.
     function maxRedeem(address owner_) public view override returns (uint256) {
+        if (!market.haltController().canLiquidate()) return 0;
         uint256 cash = IERC20(asset()).balanceOf(address(this));
         uint256 cashInShares = convertToShares(cash);
         uint256 ownerMax = super.maxRedeem(owner_);

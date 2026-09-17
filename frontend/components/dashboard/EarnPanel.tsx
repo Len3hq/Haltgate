@@ -14,6 +14,7 @@ import {
   useReadMarketTotalBorrows,
   useReadMarketReserveFactor,
   useReadInterestRateModelGetSupplyRatePerSecond,
+  useReadHaltControllerCanLiquidate,
 } from "@/lib/generated";
 import { CONTRACTS, USDG_DECIMALS } from "@/lib/contracts";
 import { formatAmount, formatApr } from "@/lib/format";
@@ -50,6 +51,15 @@ export function EarnPanel() {
     address: CONTRACTS.lenderVault,
     args: address ? [address] : undefined,
     query: { enabled: !!address && tab === "withdraw", refetchInterval: 8_000 },
+  });
+  // maxWithdraw is zero both when the market is halted (redemptions are
+  // gated the same way liquidations are -- see LenderVault.maxRedeem) and,
+  // separately, when cash is just genuinely out on loan. Read halt state
+  // directly so the warning below names the right one instead of always
+  // blaming borrowers.
+  const { data: canLiquidate } = useReadHaltControllerCanLiquidate({
+    address: CONTRACTS.haltController,
+    query: { enabled: tab === "withdraw", refetchInterval: 6_000 },
   });
 
   const { data: allowance, refetch: refetchAllowance } = useReadContract({
@@ -187,7 +197,12 @@ export function EarnPanel() {
         ))}
       </div>
 
-      {insufficientLiquidity && (
+      {tab === "withdraw" && canLiquidate === false && (
+        <p className="mt-3 rounded-[var(--radius-card)] bg-[var(--color-warning-bg)] px-3 py-2 text-xs text-[var(--color-warning)]">
+          Withdrawals are paused while the market is halted -- see the status banner above. Deposits still work as normal.
+        </p>
+      )}
+      {insufficientLiquidity && canLiquidate !== false && (
         <p className="mt-3 rounded-[var(--radius-card)] bg-[var(--color-warning-bg)] px-3 py-2 text-xs text-[var(--color-warning)]">
           Only {formatAmount(maxWithdrawable, USDG_DECIMALS)} USDG is liquid right now -- the rest is out on loan to borrowers.
         </p>
