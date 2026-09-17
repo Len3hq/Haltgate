@@ -181,3 +181,58 @@ OPEN → HALTING → HALTED → RESUMING → OPEN
 | **Technical depth / Innovation** | §3.1's oracle-pause mechanism, confirmed as Backed's own behavior and correctly generalized to both raw and wrapped xStocks — not a generic "RWA lending" pitch. |
 | **Market relevance** | §1's confirmed real liquidity (USDG/wNVDAx pool) and confirmed zero-collateral gap on Aave X Layer — a real, evidenced gap, not an asserted one. |
 | **Demo clarity** | The OPEN→HALTED→RESUMING toggle walkthrough is a natural, visual demo moment — plan for it explicitly, video or live. |
+
+---
+
+## 11. v2 roadmap — feature additions (post-v1, not hackathon-scoped)
+
+v1 (§4) is deliberately narrow: single-market borrow/repay, one collateral asset, no leverage. These three additions are next, sequenced by risk to the audited core. Status as of 2026-09-17: none started; v1 is live and verified on testnet (see §9's criteria, all met).
+
+**Shared prerequisite — `SwapModule`:** an internal oracle-priced wNVDAx↔USDG swap (no real DEX has liquidity for the mock testnet token), fee/spread applied, **gated on `HaltController.canSupplyOrBorrow()`** — can't swap into more exposure to a stock whose price is currently frozen. Built once, used by Phases 1 and 2.
+
+### Phase 1 — Leverage Zap (single-loop, "Magic Swap"-style)
+- New periphery contract `LeverageZap.sol`: one atomic tx — `supply(initial collateral) → borrow(USDG) → swap(USDG→wNVDAx via SwapModule) → supply(additional wNVDAx)`.
+- Stateless periphery; `Market`/`LenderVault` untouched, no redeploy of core contracts required.
+- Tests: happy path, halted-market revert, insufficient-liquidity revert, post-loop health-factor check.
+- Frontend: new "Leverage" tab — deposit amount, projected exposure/health factor, single confirm tx.
+
+### Phase 2 — Multiply (recursive leverage, Kamino-style)
+- Extends `LeverageZap` with a `targetLeverage` param — loops borrow→swap→supply until the target multiple is reached, hard-capped in the contract (not just the UI; e.g. max 5x).
+- Open design decision: whether a loop iteration that would breach the LTV safety margin reverts the whole tx or just stops early at the last safe multiple.
+- Tests: multiplier accuracy at 2x/3x/5x, revert beyond max cap, revert on any iteration breaching LTV.
+- Frontend: leverage slider (1x–5x) on the same tab, live projected health factor as it moves.
+
+### Phase 3 — Fixed-Rate Borrow Without Liquidation (Offerbook-style)
+The larger addition — touches core `Market` risk/settlement logic, not just periphery.
+- Open design decisions (confirm before coding):
+  - New position type inside the existing `Market`/`LenderVault` (shared pool liquidity) rather than an isolated P2P contract — avoids fragmenting liquidity, consistent with the "additive, not rearchitecture" decision from the council review of Offerbook (§2-adjacent).
+  - Maturity clock behavior during `HALTED`: pause (mirrors the existing interest-freeze precedent for variable-rate debt) vs. keep running.
+  - Default/settlement at maturity: pool/lender claims collateral at a fixed conversion — no price-triggered liquidation involved, by design.
+  - How LP withdrawals interact with capital locked in unmatured fixed-term loans — `LenderVault.maxRedeem()`'s halt-gate logic will need to account for this pool too.
+- Contract changes: likely a `FixedTermPosition` struct/mapping in `Market.sol`, plus `borrowFixed()` / `repayFixed()` / `settleMatured()`, separate from the existing variable-rate accrual path.
+- Tests: origination, on-time repay, halt-during-term (clock pause), maturity default/seizure, LP liquidity impact.
+- Frontend: new "Fixed" borrow tab alongside the existing variable-rate one.
+- Redeploy cost: Market + LenderVault again (core logic change, not periphery) — expected, matches the established immutable-reference redeploy pattern used for every prior core fix.
+
+**Sequencing rationale:** Phases 1–2 are additive/periphery, low risk to the audited core, ship fast, and reinforce the halt thesis ("halt-aware leverage"). Phase 3 is the deeper structural differentiator but carries the most design and testing risk, so it's sequenced last, after the two lower-risk wins are shipped and demoable.
+
+---
+
+## 12. Mainnet migration path
+
+Everything in §4 and §11 targets X Layer testnet. Migration to X Layer mainnet is a **migration, not a rebuild** — same zkEVM architecture, same Solidity — but five components were deliberately mocked for testnet and need real rework, not just a redeploy with new constructor args.
+
+**Carries over unchanged (redeploy only):** `Market.sol`, `LenderVault.sol`, `InterestRateModel.sol`, `HaltController.sol` state machine, `Multisig.sol`/Timelock mechanics, and the Phase 1–3 additions above once built.
+
+**Needs real rework before mainnet:**
+
+| Component | Testnet (current/planned) | Mainnet requirement |
+|---|---|---|
+| Halt signal | Multisig manually calls `pauseOracle()`/`resumeOracle()` on a mock | Real trust-minimized signal — Backed's own oracle pause (§3.1) or CF Benchmarks' CA feed (§3.1), not self-triggered. This is the product's core IP and needs dedicated design work, not a drop-in swap. |
+| Collateral token | `wNVDAx` mock ERC20 with a faucet | Real xStock token from the actual issuer (Backed) — different custody/redemption trust assumptions, no faucet. |
+| `SwapModule` (§11) | Internal oracle-priced swap (no testnet DEX liquidity) | Route through a real DEX/aggregator if liquidity exists (§3.2's confirmed ~$588K TVL Uniswap pool) — an internal fixed-price swap holding real money is a manipulation vector. |
+| Risk parameters | Demo defaults (LTV, liquidation threshold, rate curve, reserve factor) | Re-derived from real volatility/liquidity data before real TVL sits behind them. |
+| Governance signers | Test EOAs | Real multisig signers/threshold. |
+| Audit | Foundry tests + Slither self-review | Third-party audit expected before real funds, given lending + liquidation + (post-Phase-3) fixed-term settlement logic. |
+
+Matches the caution already in §6 edge case 8 and §9's success criteria: no claim of mainnet-readiness until every assumption above is independently re-verified against real contracts.

@@ -14,7 +14,7 @@ xStocks on X Layer has real inventory and no on-chain financing — Aave on X La
 - A single-market borrow/repay flow: deposit wNVDAx (confirmed liquid on X Layer), borrow USDG, repay — gated by the halt state machine.
 - A corporate-action timing schedule (real, confirmed activation timing) driving the halt window, with a live oracle feed where reachable.
 
-**Not in v1:** leveraged looping (Multiply), LP-token collateral, multi-asset baskets, per-tier risk parameters, or an agent/AI policy layer. These are roadmap, not build.
+**Not in v1:** leveraged looping (Leverage Zap / Multiply), fixed-rate borrowing without liquidation, LP-token collateral, multi-asset baskets, per-tier risk parameters, or an agent/AI policy layer. The leverage and fixed-rate additions are planned next — see [`BUILD.md`§11](./BUILD.md#11-v2-roadmap--feature-additions-post-v1-not-hackathon-scoped) for the build plan, and [§12](./BUILD.md#12-mainnet-migration-path) for what mainnet migration will require.
 
 ## Toolchain
 
