@@ -18,6 +18,7 @@ export default defineConfig({
         "IPausableOracle.sol/**",
         "MockWrappedXStock.sol/**",
         "MockUSDG.sol/**",
+        "WNVDAxFaucet.sol/**",
       ],
       forge: {
         build: false, // build separately via `forge build` -- avoid re-running it on every codegen

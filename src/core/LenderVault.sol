@@ -66,8 +66,21 @@ contract LenderVault is ERC4626, Ownable, ReentrancyGuard {
     /// Market's pending-accrual view so this is accurate even between
     /// Market's own accrual transactions), minus reserves -- reserves are
     /// the protocol's cut of interest, not depositors'.
+    ///
+    /// Deliberately computed as ONE left-to-right expression -- cash and
+    /// totalBorrows summed first, reserves subtracted from that combined
+    /// total last -- not as cash + (totalBorrows - totalReserves). The
+    /// combined sum can never fall below totalReserves (reserves are only
+    /// ever funded out of interest already folded into totalBorrows, and a
+    /// repayment moves value from totalBorrows into cash without changing
+    /// their sum), but totalBorrows alone can: a full repayment can
+    /// legitimately drop it to zero while totalReserves is still positive.
+    /// Subtracting in that isolated order underflowed and reverted every
+    /// deposit/withdraw call permanently in exactly that scenario --
+    /// confirmed by reproduction before this fix.
     function totalAssets() public view override returns (uint256) {
-        return IERC20(asset()).balanceOf(address(this)) + market.lpOwedBorrowsView();
+        (uint256 pendingTotalBorrows, uint256 pendingTotalReserves) = market.pendingBorrowsAndReserves();
+        return IERC20(asset()).balanceOf(address(this)) + pendingTotalBorrows - pendingTotalReserves;
     }
 
     /// @notice Capped at actual liquid cash -- part of totalAssets() is

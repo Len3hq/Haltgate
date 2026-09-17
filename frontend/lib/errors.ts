@@ -11,7 +11,11 @@ const ERROR_MESSAGES: Record<string, string> = {
   MarketHalted: "The market isn't open right now -- see the status banner above.",
   ExceedsMaxLTV: "That amount would exceed the maximum loan-to-value ratio.",
   InsufficientCollateral: "You don't have enough collateral supplied for this.",
+  InsufficientLiquidity: "The vault doesn't have enough liquid USDG for this right now.",
+  InsufficientReserves: "That's more than the protocol's accrued reserves.",
+  InvalidReserveFactor: "That reserve factor is above the allowed maximum.",
   ZeroAmount: "Enter an amount greater than zero.",
+  ZeroAddress: "That address can't be the zero address.",
   NotLiquidatable: "This position isn't liquidatable -- its health factor is still safe.",
   StaleOracle: "The price feed is stale. Try again shortly.",
   OraclePausedDirectly: "The price feed is paused.",
@@ -20,9 +24,19 @@ const ERROR_MESSAGES: Record<string, string> = {
   // MockPausableOracle.sol
   OraclePaused: "The price feed is paused.",
   OracleNotPaused: "The price feed isn't paused.",
+  // LenderVault.sol
+  OnlyMarket: "Only the Market contract can do that.",
+  MarketAlreadySet: "The vault is already wired to a market.",
+  // WNVDAxFaucet.sol
+  AlreadyClaimed: "This address has already claimed from the faucet.",
   // OpenZeppelin ERC20 (insufficient allowance/balance on supply/borrow/repay/liquidate)
   ERC20InsufficientAllowance: "Approve a higher amount first.",
   ERC20InsufficientBalance: "Insufficient balance for this amount.",
+  // OpenZeppelin ERC4626 (LenderVault deposit/withdraw limits)
+  ERC4626ExceededMaxDeposit: "That's more than the vault currently accepts.",
+  ERC4626ExceededMaxMint: "That's more shares than the vault currently accepts.",
+  ERC4626ExceededMaxWithdraw: "That's more than is currently liquid in the vault -- the rest is out on loan.",
+  ERC4626ExceededMaxRedeem: "That's more shares than you can currently redeem -- part of the vault's cash is out on loan.",
 };
 
 export function getErrorMessage(error: Error | null | undefined): string | undefined {

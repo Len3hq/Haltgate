@@ -23,7 +23,7 @@ const STATE_CONFIG = {
     dot: "bg-[var(--color-error)]",
     bg: "bg-[var(--color-error-bg)]",
     text: "text-[var(--color-error)]",
-    message: "Market halted for a corporate action in progress. Only repayment is available until it resolves.",
+    message: "Market halted for a corporate action in progress. Only repayment is available -- interest stops accruing on all debt until it resolves.",
   },
   RESUMING: {
     dot: "bg-[var(--color-accent-blue)]",

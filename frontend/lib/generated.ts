@@ -1100,13 +1100,6 @@ export const marketAbi = [
   {
     type: 'function',
     inputs: [],
-    name: 'lpOwedBorrowsView',
-    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
-    stateMutability: 'view',
-  },
-  {
-    type: 'function',
-    inputs: [],
     name: 'maxLTV',
     outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
     stateMutability: 'view',
@@ -1132,6 +1125,20 @@ export const marketAbi = [
     inputs: [],
     name: 'owner',
     outputs: [{ name: '', internalType: 'address', type: 'address' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'pendingBorrowsAndReserves',
+    outputs: [
+      { name: 'pendingTotalBorrows', internalType: 'uint256', type: 'uint256' },
+      {
+        name: 'pendingTotalReserves',
+        internalType: 'uint256',
+        type: 'uint256',
+      },
+    ],
     stateMutability: 'view',
   },
   {
@@ -2011,6 +2018,66 @@ export const mockWrappedXStockAbi = [
     type: 'error',
     inputs: [{ name: 'account', internalType: 'address', type: 'address' }],
     name: 'OwnableUnauthorizedAccount',
+  },
+] as const
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// WNVDAxFaucet
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+export const wnvdAxFaucetAbi = [
+  {
+    type: 'constructor',
+    inputs: [{ name: 'token_', internalType: 'address', type: 'address' }],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'CLAIM_AMOUNT',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'claim',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: '', internalType: 'address', type: 'address' }],
+    name: 'hasClaimed',
+    outputs: [{ name: '', internalType: 'bool', type: 'bool' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'token',
+    outputs: [{ name: '', internalType: 'contract IERC20', type: 'address' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      { name: 'to', internalType: 'address', type: 'address', indexed: true },
+      {
+        name: 'amount',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+    ],
+    name: 'Claimed',
+  },
+  { type: 'error', inputs: [], name: 'AlreadyClaimed' },
+  {
+    type: 'error',
+    inputs: [{ name: 'token', internalType: 'address', type: 'address' }],
+    name: 'SafeERC20FailedOperation',
   },
 ] as const
 
@@ -3043,15 +3110,6 @@ export const useReadMarketLiquidationThreshold =
   })
 
 /**
- * Wraps __{@link useReadContract}__ with `abi` set to __{@link marketAbi}__ and `functionName` set to `"lpOwedBorrowsView"`
- */
-export const useReadMarketLpOwedBorrowsView =
-  /*#__PURE__*/ createUseReadContract({
-    abi: marketAbi,
-    functionName: 'lpOwedBorrowsView',
-  })
-
-/**
  * Wraps __{@link useReadContract}__ with `abi` set to __{@link marketAbi}__ and `functionName` set to `"maxLTV"`
  */
 export const useReadMarketMaxLtv = /*#__PURE__*/ createUseReadContract({
@@ -3083,6 +3141,15 @@ export const useReadMarketOwner = /*#__PURE__*/ createUseReadContract({
   abi: marketAbi,
   functionName: 'owner',
 })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link marketAbi}__ and `functionName` set to `"pendingBorrowsAndReserves"`
+ */
+export const useReadMarketPendingBorrowsAndReserves =
+  /*#__PURE__*/ createUseReadContract({
+    abi: marketAbi,
+    functionName: 'pendingBorrowsAndReserves',
+  })
 
 /**
  * Wraps __{@link useReadContract}__ with `abi` set to __{@link marketAbi}__ and `functionName` set to `"positions"`
@@ -3983,4 +4050,83 @@ export const useWatchMockWrappedXStockTransferEvent =
   /*#__PURE__*/ createUseWatchContractEvent({
     abi: mockWrappedXStockAbi,
     eventName: 'Transfer',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link wnvdAxFaucetAbi}__
+ */
+export const useReadWnvdAxFaucet = /*#__PURE__*/ createUseReadContract({
+  abi: wnvdAxFaucetAbi,
+})
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link wnvdAxFaucetAbi}__ and `functionName` set to `"CLAIM_AMOUNT"`
+ */
+export const useReadWnvdAxFaucetClaimAmount =
+  /*#__PURE__*/ createUseReadContract({
+    abi: wnvdAxFaucetAbi,
+    functionName: 'CLAIM_AMOUNT',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link wnvdAxFaucetAbi}__ and `functionName` set to `"hasClaimed"`
+ */
+export const useReadWnvdAxFaucetHasClaimed =
+  /*#__PURE__*/ createUseReadContract({
+    abi: wnvdAxFaucetAbi,
+    functionName: 'hasClaimed',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link wnvdAxFaucetAbi}__ and `functionName` set to `"token"`
+ */
+export const useReadWnvdAxFaucetToken = /*#__PURE__*/ createUseReadContract({
+  abi: wnvdAxFaucetAbi,
+  functionName: 'token',
+})
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link wnvdAxFaucetAbi}__
+ */
+export const useWriteWnvdAxFaucet = /*#__PURE__*/ createUseWriteContract({
+  abi: wnvdAxFaucetAbi,
+})
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link wnvdAxFaucetAbi}__ and `functionName` set to `"claim"`
+ */
+export const useWriteWnvdAxFaucetClaim = /*#__PURE__*/ createUseWriteContract({
+  abi: wnvdAxFaucetAbi,
+  functionName: 'claim',
+})
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link wnvdAxFaucetAbi}__
+ */
+export const useSimulateWnvdAxFaucet = /*#__PURE__*/ createUseSimulateContract({
+  abi: wnvdAxFaucetAbi,
+})
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link wnvdAxFaucetAbi}__ and `functionName` set to `"claim"`
+ */
+export const useSimulateWnvdAxFaucetClaim =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: wnvdAxFaucetAbi,
+    functionName: 'claim',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link wnvdAxFaucetAbi}__
+ */
+export const useWatchWnvdAxFaucetEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({ abi: wnvdAxFaucetAbi })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link wnvdAxFaucetAbi}__ and `eventName` set to `"Claimed"`
+ */
+export const useWatchWnvdAxFaucetClaimedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: wnvdAxFaucetAbi,
+    eventName: 'Claimed',
   })

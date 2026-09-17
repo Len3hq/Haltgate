@@ -267,7 +267,15 @@ contract Market is Ownable, ReentrancyGuard {
         if (repayAmount == 0) revert ZeroAmount();
 
         pos.principal = syncedDebt - repayAmount;
-        totalBorrows -= repayAmount;
+        // Defensive clamp, matching the collateralSeized clamp in liquidate()
+        // below: totalBorrows is the SUM of every position's live debt, each
+        // independently floor-rounded off the shared borrowIndex, so it can
+        // drift from any one position's own rounded figure by a wei or two
+        // over many accrual ticks. repayAmount is already capped at this
+        // position's own debt, not at totalBorrows -- without this clamp, an
+        // unlucky rounding edge on the last position closing out could
+        // underflow totalBorrows and revert a legitimate repayment.
+        totalBorrows -= repayAmount > totalBorrows ? totalBorrows : repayAmount;
         // Repayments go straight back into the vault -- Market never
         // custodies debt-token cash itself, even momentarily.
         debtToken.safeTransferFrom(msg.sender, address(lenderVault), repayAmount);
@@ -302,7 +310,8 @@ contract Market is Ownable, ReentrancyGuard {
 
         pos.principal = syncedDebt - actualRepay;
         pos.collateral -= collateralSeized;
-        totalBorrows -= actualRepay;
+        // Same defensive clamp as repay() -- see the comment there.
+        totalBorrows -= actualRepay > totalBorrows ? totalBorrows : actualRepay;
         totalCollateral -= collateralSeized;
 
         debtToken.safeTransferFrom(msg.sender, address(lenderVault), actualRepay);
@@ -316,11 +325,27 @@ contract Market is Ownable, ReentrancyGuard {
     /// bumping the timestamp) when nothing is owed, so a long idle period
     /// with zero outstanding borrows never applies phantom interest once
     /// someone finally does borrow.
+    ///
+    /// BUILD.md §6 edge case 5: the interest index is frozen while the
+    /// market is HALTED -- disclosed here, not silent. Borrowers can't take
+    /// any risk-managing action besides repay during a halt (no new borrow,
+    /// no new collateral), and the price itself is frozen too, so charging
+    /// interest against a window nobody can react to would be unearned
+    /// distortion, not real economics. Only the letter of the edge case
+    /// (HALTED specifically) freezes it -- HALTING and RESUMING still accrue,
+    /// since those are brief transitional states, not the CA window itself.
+    /// This is an approximation at the boundary: because HaltController has
+    /// no reference back to Market, accrual can't be split precisely at the
+    /// exact block a halt begins or ends -- it freezes (or resumes) as of
+    /// whichever state is current the next time accrueInterest() runs, which
+    /// in practice is prompt since every state-changing Market call (and
+    /// LenderVault deposit/withdraw) triggers it.
     function accrueInterest() public {
         uint256 elapsed = block.timestamp - lastAccrualTimestamp;
         if (elapsed == 0) return;
         lastAccrualTimestamp = block.timestamp;
         if (totalBorrows == 0) return;
+        if (haltController.state() == HaltController.MarketState.HALTED) return;
 
         uint256 cash = debtToken.balanceOf(address(lenderVault));
         uint256 ratePerSecond = interestRateModel.getBorrowRatePerSecond(cash, totalBorrows);
@@ -333,14 +358,23 @@ contract Market is Ownable, ReentrancyGuard {
         emit InterestAccrued(interestAccumulated, reservesAdded, newIndex, newTotalBorrows);
     }
 
-    /// @return Value owed to LenderVault shareholders: totalBorrows minus
-    /// reserves, both pending-accrual-inclusive. This is the exact figure
-    /// LenderVault.totalAssets() needs; kept as one shared view so there's
-    /// only one implementation of the accrual math to get right, used by
-    /// both the write path (accrueInterest) and every read path.
-    function lpOwedBorrowsView() external view returns (uint256) {
-        (, uint256 pendingTotalBorrows, uint256 pendingTotalReserves) = _pendingAccrual();
-        return pendingTotalBorrows - pendingTotalReserves;
+    /// @notice Pending (accrual-inclusive) totalBorrows and totalReserves,
+    /// exposed together -- NOT pre-subtracted -- so LenderVault.totalAssets()
+    /// can compute cash + totalBorrows - totalReserves as one left-to-right
+    /// expression, summing cash and totalBorrows before subtracting reserves.
+    /// Subtracting reserves from totalBorrows in isolation first (an earlier
+    /// version of this function did exactly that, returning just the
+    /// difference) can underflow: a full repayment legitimately drops
+    /// totalBorrows to zero while totalReserves -- funded by interest
+    /// already collected, now sitting in the vault's cash balance instead --
+    /// is still positive. Confirmed by reproduction: one borrower fully
+    /// repaying after a year of accrued interest reverted every subsequent
+    /// vault deposit/withdraw with an arithmetic underflow, permanently,
+    /// since totalAssets() is on the path of every ERC-4626 entry point.
+    /// cash + totalBorrows can never fall below totalReserves, even though
+    /// totalBorrows alone can -- see the invariant argument in LenderVault.
+    function pendingBorrowsAndReserves() external view returns (uint256 pendingTotalBorrows, uint256 pendingTotalReserves) {
+        (, pendingTotalBorrows, pendingTotalReserves) = _pendingAccrual();
     }
 
     /// @return A user's current debt, interest-inclusive, computed live --
@@ -411,10 +445,15 @@ contract Market is Ownable, ReentrancyGuard {
         return (pos.principal * pendingIndex) / pos.borrowIndexSnapshot;
     }
 
-    /// @dev What accrueInterest() would produce if called right now, without writing state.
+    /// @dev What accrueInterest() would produce if called right now, without
+    /// writing state. Must mirror accrueInterest()'s halt-freeze check
+    /// exactly, or view functions (healthFactor, isLiquidatable, currentDebt,
+    /// lpOwedBorrowsView) would show interest that a real accrual call would
+    /// never actually write.
     function _pendingAccrual() internal view returns (uint256 pendingIndex, uint256 pendingTotalBorrows, uint256 pendingTotalReserves) {
         uint256 elapsed = block.timestamp - lastAccrualTimestamp;
-        if (elapsed == 0 || totalBorrows == 0) return (borrowIndex, totalBorrows, totalReserves);
+        bool frozen = haltController.state() == HaltController.MarketState.HALTED;
+        if (elapsed == 0 || totalBorrows == 0 || frozen) return (borrowIndex, totalBorrows, totalReserves);
         uint256 cash = debtToken.balanceOf(address(lenderVault));
         uint256 ratePerSecond = interestRateModel.getBorrowRatePerSecond(cash, totalBorrows);
         (uint256 newIndex, uint256 newTotalBorrows,, uint256 reservesAdded) =
@@ -441,7 +480,11 @@ contract Market is Ownable, ReentrancyGuard {
         // here since every state-changing call triggers it.
         uint256 interestFactor = ratePerSecond * elapsed;
         interestAccumulated = (currentTotalBorrows * interestFactor) / WAD;
-        reservesAdded = (interestAccumulated * reserveFactor) / WAD;
+        // Computed independently at full precision, not as a fraction of the
+        // already-truncated interestAccumulated above -- multiplying before
+        // dividing (once, at the end) instead of dividing twice avoids
+        // compounding two separate truncations into reservesAdded.
+        reservesAdded = (currentTotalBorrows * interestFactor * reserveFactor) / (WAD * WAD);
         newTotalBorrows = currentTotalBorrows + interestAccumulated;
         newIndex = currentIndex + (currentIndex * interestFactor) / WAD;
     }

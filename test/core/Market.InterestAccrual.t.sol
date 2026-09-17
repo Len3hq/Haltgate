@@ -322,4 +322,155 @@ contract MarketInterestAccrualTest is Test {
         vm.warp(block.timestamp + 365 days);
         assertApproxEqAbs(market.currentDebt(alice), debtUnderOldModel, 2, "zero-rate model must halt further accrual");
     }
+
+    // --- BUILD.md §6 edge case 5: "Interest accrual during halt -- Freeze
+    // the interest index during HALTED -- disclose this rather than
+    // silently accruing." Never tested until now; accrueInterest() had no
+    // halt-awareness at all before this fix. ---
+
+    function test_InterestFrozen_DuringHalt() public {
+        vm.startPrank(alice);
+        market.supply(20e18);
+        market.borrow(1_000e18);
+        vm.stopPrank();
+
+        vm.warp(block.timestamp + 10 days);
+        assertGt(market.currentDebt(alice), 1_000e18, "sanity: interest accrues normally before any halt");
+
+        vm.prank(owner);
+        oracle.pauseOracle();
+        controller.sync(); // OPEN -> HALTED (permissionless, mirrors the rest of the suite)
+        assertEq(uint8(controller.state()), uint8(HaltController.MarketState.HALTED), "sanity: market must actually be halted");
+
+        market.accrueInterest(); // settle up to the instant of the halt
+        uint256 debtAtHaltStart = market.currentDebt(alice);
+
+        vm.warp(block.timestamp + 100 days); // a long halt
+        assertEq(market.currentDebt(alice), debtAtHaltStart, "debt must not grow at all while HALTED (view path)");
+
+        market.accrueInterest(); // a real write, not just a view -- must still be a no-op
+        assertEq(market.currentDebt(alice), debtAtHaltStart, "a real accrueInterest() call during HALTED must not move the index");
+    }
+
+    function test_InterestResumes_AfterHaltEnds() public {
+        vm.startPrank(alice);
+        market.supply(20e18);
+        market.borrow(1_000e18);
+        vm.stopPrank();
+
+        vm.prank(owner);
+        oracle.pauseOracle();
+        controller.sync(); // OPEN -> HALTED
+        market.accrueInterest();
+        uint256 debtDuringHalt = market.currentDebt(alice);
+
+        vm.warp(block.timestamp + 50 days);
+        assertEq(market.currentDebt(alice), debtDuringHalt, "frozen throughout the halt");
+
+        vm.prank(owner);
+        oracle.resumeOracle(NVDA_PRICE);
+        controller.sync(); // HALTED -> RESUMING
+        vm.prank(keeper);
+        controller.completeResume(); // RESUMING -> OPEN
+        assertEq(uint8(controller.state()), uint8(HaltController.MarketState.OPEN));
+
+        vm.warp(block.timestamp + 10 days);
+        assertGt(market.currentDebt(alice), debtDuringHalt, "interest must resume accruing once the market reopens");
+    }
+
+    function test_HealthFactor_DoesNotWorsen_WhileHalted_FromInterestAlone() public {
+        // The safety-relevant flip side of the freeze: a position that was
+        // borderline-safe right before a halt must not drift into
+        // liquidatable territory purely from interest ticking while the
+        // borrower has no way to react (no new borrow/supply, price frozen too).
+        vm.startPrank(alice);
+        market.supply(20e18); // value 3600, max borrow 1800
+        market.borrow(1_780e18); // just under the max, close to the edge
+        vm.stopPrank();
+
+        vm.prank(owner);
+        oracle.pauseOracle();
+        controller.sync();
+        assertEq(uint8(controller.state()), uint8(HaltController.MarketState.HALTED));
+
+        uint256 hfAtHaltStart = market.healthFactor(alice);
+        assertFalse(market.isLiquidatable(alice));
+
+        vm.warp(block.timestamp + 300 days); // a very long halt
+        assertEq(market.healthFactor(alice), hfAtHaltStart, "health factor must not move at all from interest while frozen");
+        assertFalse(market.isLiquidatable(alice), "must not become liquidatable purely from a frozen index");
+    }
+
+    function test_PendingBorrowsAndReserves_AlsoFreezes_DuringHalt() public {
+        // The vault's share price derives from this view -- if it didn't
+        // freeze too, LPs would see (and could exploit) a moving valuation
+        // during a halt even though borrower debt itself is frozen.
+        vm.startPrank(alice);
+        market.supply(20e18);
+        market.borrow(1_000e18);
+        vm.stopPrank();
+
+        vm.prank(owner);
+        oracle.pauseOracle();
+        controller.sync();
+        market.accrueInterest();
+        (uint256 borrowsAtHaltStart, uint256 reservesAtHaltStart) = market.pendingBorrowsAndReserves();
+
+        vm.warp(block.timestamp + 60 days);
+        (uint256 borrowsLater, uint256 reservesLater) = market.pendingBorrowsAndReserves();
+        assertEq(borrowsLater, borrowsAtHaltStart, "totalBorrows must not drift during a halt");
+        assertEq(reservesLater, reservesAtHaltStart, "totalReserves must not drift during a halt either");
+    }
+
+    // --- Reproduces a real bug found during audit: lpOwedBorrowsView() used
+    // to subtract totalReserves from totalBorrows in isolation, which
+    // underflows the instant a full repayment drops totalBorrows below
+    // totalReserves (reserves funded by interest already collected, now
+    // sitting in cash instead). Since LenderVault.totalAssets() depended on
+    // it, this would have permanently bricked every vault deposit/withdraw
+    // the first time a borrower's debt was fully repaid after any interest
+    // had accrued. Fixed by computing cash + totalBorrows - totalReserves as
+    // one left-to-right expression in the vault instead. ---
+    function test_VaultRemainsUsable_AfterFullRepayDrainsBorrowsBelowReserves() public {
+        vm.prank(owner);
+        market.setReserveFactor(0.1e18);
+
+        vm.startPrank(alice);
+        market.supply(20e18);
+        market.borrow(1_000e18); // borrows all available vault liquidity
+        vm.stopPrank();
+
+        vm.warp(block.timestamp + 365 days);
+        uint256 owed = market.currentDebt(alice);
+
+        vm.prank(owner);
+        usdg.mint(alice, owed - 1_000e18);
+        vm.prank(alice);
+        usdg.approve(address(market), owed);
+        vm.prank(alice);
+        market.repay(owed); // full repayment -- totalBorrows drops to (near) zero
+
+        assertEq(market.totalBorrows(), 0, "sanity: fully repaid");
+        assertGt(market.totalReserves(), 0, "sanity: reserves accrued and were never touched by the repay");
+
+        // Must not revert, and must return a sane value reflecting the true
+        // combined pool value minus the protocol's reserve claim.
+        (uint256 pendingBorrows, uint256 pendingReserves) = market.pendingBorrowsAndReserves();
+        assertEq(pendingBorrows, 0);
+        assertGt(pendingReserves, 0);
+
+        // The vault must still be fully usable -- this is the actual
+        // regression check: every deposit/withdraw depends on totalAssets(),
+        // which depends on exactly this arithmetic.
+        uint256 totalAssetsBefore = vault.totalAssets();
+        assertGt(totalAssetsBefore, 0);
+
+        vm.prank(owner);
+        usdg.mint(lp, 100e18);
+        vm.prank(lp);
+        usdg.approve(address(vault), 100e18);
+        vm.prank(lp);
+        vault.deposit(100e18, lp); // must not revert
+        assertEq(vault.totalAssets(), totalAssetsBefore + 100e18);
+    }
 }
