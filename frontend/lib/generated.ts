@@ -2022,6 +2022,266 @@ export const mockWrappedXStockAbi = [
 ] as const
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// SwapModule
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+export const swapModuleAbi = [
+  {
+    type: 'constructor',
+    inputs: [
+      { name: 'collateralToken_', internalType: 'address', type: 'address' },
+      { name: 'debtToken_', internalType: 'address', type: 'address' },
+      { name: 'oracle_', internalType: 'address', type: 'address' },
+      { name: 'haltController_', internalType: 'address', type: 'address' },
+      { name: 'feeWad_', internalType: 'uint256', type: 'uint256' },
+      { name: 'owner_', internalType: 'address', type: 'address' },
+    ],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'MAX_FEE',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'collateralDecimals',
+    outputs: [{ name: '', internalType: 'uint8', type: 'uint8' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'collateralToken',
+    outputs: [{ name: '', internalType: 'contract IERC20', type: 'address' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'debtDecimals',
+    outputs: [{ name: '', internalType: 'uint8', type: 'uint8' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'debtToken',
+    outputs: [{ name: '', internalType: 'contract IERC20', type: 'address' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'feeWad',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'haltController',
+    outputs: [
+      { name: '', internalType: 'contract HaltController', type: 'address' },
+    ],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'oracle',
+    outputs: [
+      { name: '', internalType: 'contract IPausableOracle', type: 'address' },
+    ],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'owner',
+    outputs: [{ name: '', internalType: 'address', type: 'address' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'renounceOwnership',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'newFeeWad', internalType: 'uint256', type: 'uint256' }],
+    name: 'setFee',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'collateralAmountIn', internalType: 'uint256', type: 'uint256' },
+      { name: 'to', internalType: 'address', type: 'address' },
+    ],
+    name: 'swapCollateralForDebt',
+    outputs: [{ name: 'debtOut', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'debtAmountIn', internalType: 'uint256', type: 'uint256' },
+      { name: 'to', internalType: 'address', type: 'address' },
+    ],
+    name: 'swapDebtForCollateral',
+    outputs: [
+      { name: 'collateralOut', internalType: 'uint256', type: 'uint256' },
+    ],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'newOwner', internalType: 'address', type: 'address' }],
+    name: 'transferOwnership',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'token', internalType: 'address', type: 'address' },
+      { name: 'to', internalType: 'address', type: 'address' },
+      { name: 'amount', internalType: 'uint256', type: 'uint256' },
+    ],
+    name: 'withdrawInventory',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'previous',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+      {
+        name: 'next',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+    ],
+    name: 'FeeUpdated',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'token',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      { name: 'to', internalType: 'address', type: 'address', indexed: true },
+      {
+        name: 'amount',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+    ],
+    name: 'InventoryWithdrawn',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'previousOwner',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      {
+        name: 'newOwner',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+    ],
+    name: 'OwnershipTransferred',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'caller',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      { name: 'to', internalType: 'address', type: 'address', indexed: true },
+      {
+        name: 'collateralForDebt',
+        internalType: 'bool',
+        type: 'bool',
+        indexed: false,
+      },
+      {
+        name: 'amountIn',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+      {
+        name: 'amountOut',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+    ],
+    name: 'Swapped',
+  },
+  { type: 'error', inputs: [], name: 'FeeTooHigh' },
+  { type: 'error', inputs: [], name: 'InsufficientInventory' },
+  { type: 'error', inputs: [], name: 'MarketHalted' },
+  { type: 'error', inputs: [], name: 'OraclePausedDirectly' },
+  {
+    type: 'error',
+    inputs: [{ name: 'owner', internalType: 'address', type: 'address' }],
+    name: 'OwnableInvalidOwner',
+  },
+  {
+    type: 'error',
+    inputs: [{ name: 'account', internalType: 'address', type: 'address' }],
+    name: 'OwnableUnauthorizedAccount',
+  },
+  { type: 'error', inputs: [], name: 'ReentrancyGuardReentrantCall' },
+  {
+    type: 'error',
+    inputs: [{ name: 'token', internalType: 'address', type: 'address' }],
+    name: 'SafeERC20FailedOperation',
+  },
+  {
+    type: 'error',
+    inputs: [
+      { name: 'lastUpdated', internalType: 'uint256', type: 'uint256' },
+      { name: 'maxStaleness', internalType: 'uint256', type: 'uint256' },
+    ],
+    name: 'StaleOracle',
+  },
+  { type: 'error', inputs: [], name: 'ZeroAddress' },
+  { type: 'error', inputs: [], name: 'ZeroAmount' },
+] as const
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // WNVDAxFaucet
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -4050,6 +4310,252 @@ export const useWatchMockWrappedXStockTransferEvent =
   /*#__PURE__*/ createUseWatchContractEvent({
     abi: mockWrappedXStockAbi,
     eventName: 'Transfer',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link swapModuleAbi}__
+ */
+export const useReadSwapModule = /*#__PURE__*/ createUseReadContract({
+  abi: swapModuleAbi,
+})
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link swapModuleAbi}__ and `functionName` set to `"MAX_FEE"`
+ */
+export const useReadSwapModuleMaxFee = /*#__PURE__*/ createUseReadContract({
+  abi: swapModuleAbi,
+  functionName: 'MAX_FEE',
+})
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link swapModuleAbi}__ and `functionName` set to `"collateralDecimals"`
+ */
+export const useReadSwapModuleCollateralDecimals =
+  /*#__PURE__*/ createUseReadContract({
+    abi: swapModuleAbi,
+    functionName: 'collateralDecimals',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link swapModuleAbi}__ and `functionName` set to `"collateralToken"`
+ */
+export const useReadSwapModuleCollateralToken =
+  /*#__PURE__*/ createUseReadContract({
+    abi: swapModuleAbi,
+    functionName: 'collateralToken',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link swapModuleAbi}__ and `functionName` set to `"debtDecimals"`
+ */
+export const useReadSwapModuleDebtDecimals =
+  /*#__PURE__*/ createUseReadContract({
+    abi: swapModuleAbi,
+    functionName: 'debtDecimals',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link swapModuleAbi}__ and `functionName` set to `"debtToken"`
+ */
+export const useReadSwapModuleDebtToken = /*#__PURE__*/ createUseReadContract({
+  abi: swapModuleAbi,
+  functionName: 'debtToken',
+})
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link swapModuleAbi}__ and `functionName` set to `"feeWad"`
+ */
+export const useReadSwapModuleFeeWad = /*#__PURE__*/ createUseReadContract({
+  abi: swapModuleAbi,
+  functionName: 'feeWad',
+})
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link swapModuleAbi}__ and `functionName` set to `"haltController"`
+ */
+export const useReadSwapModuleHaltController =
+  /*#__PURE__*/ createUseReadContract({
+    abi: swapModuleAbi,
+    functionName: 'haltController',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link swapModuleAbi}__ and `functionName` set to `"oracle"`
+ */
+export const useReadSwapModuleOracle = /*#__PURE__*/ createUseReadContract({
+  abi: swapModuleAbi,
+  functionName: 'oracle',
+})
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link swapModuleAbi}__ and `functionName` set to `"owner"`
+ */
+export const useReadSwapModuleOwner = /*#__PURE__*/ createUseReadContract({
+  abi: swapModuleAbi,
+  functionName: 'owner',
+})
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link swapModuleAbi}__
+ */
+export const useWriteSwapModule = /*#__PURE__*/ createUseWriteContract({
+  abi: swapModuleAbi,
+})
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link swapModuleAbi}__ and `functionName` set to `"renounceOwnership"`
+ */
+export const useWriteSwapModuleRenounceOwnership =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: swapModuleAbi,
+    functionName: 'renounceOwnership',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link swapModuleAbi}__ and `functionName` set to `"setFee"`
+ */
+export const useWriteSwapModuleSetFee = /*#__PURE__*/ createUseWriteContract({
+  abi: swapModuleAbi,
+  functionName: 'setFee',
+})
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link swapModuleAbi}__ and `functionName` set to `"swapCollateralForDebt"`
+ */
+export const useWriteSwapModuleSwapCollateralForDebt =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: swapModuleAbi,
+    functionName: 'swapCollateralForDebt',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link swapModuleAbi}__ and `functionName` set to `"swapDebtForCollateral"`
+ */
+export const useWriteSwapModuleSwapDebtForCollateral =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: swapModuleAbi,
+    functionName: 'swapDebtForCollateral',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link swapModuleAbi}__ and `functionName` set to `"transferOwnership"`
+ */
+export const useWriteSwapModuleTransferOwnership =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: swapModuleAbi,
+    functionName: 'transferOwnership',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link swapModuleAbi}__ and `functionName` set to `"withdrawInventory"`
+ */
+export const useWriteSwapModuleWithdrawInventory =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: swapModuleAbi,
+    functionName: 'withdrawInventory',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link swapModuleAbi}__
+ */
+export const useSimulateSwapModule = /*#__PURE__*/ createUseSimulateContract({
+  abi: swapModuleAbi,
+})
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link swapModuleAbi}__ and `functionName` set to `"renounceOwnership"`
+ */
+export const useSimulateSwapModuleRenounceOwnership =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: swapModuleAbi,
+    functionName: 'renounceOwnership',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link swapModuleAbi}__ and `functionName` set to `"setFee"`
+ */
+export const useSimulateSwapModuleSetFee =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: swapModuleAbi,
+    functionName: 'setFee',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link swapModuleAbi}__ and `functionName` set to `"swapCollateralForDebt"`
+ */
+export const useSimulateSwapModuleSwapCollateralForDebt =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: swapModuleAbi,
+    functionName: 'swapCollateralForDebt',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link swapModuleAbi}__ and `functionName` set to `"swapDebtForCollateral"`
+ */
+export const useSimulateSwapModuleSwapDebtForCollateral =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: swapModuleAbi,
+    functionName: 'swapDebtForCollateral',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link swapModuleAbi}__ and `functionName` set to `"transferOwnership"`
+ */
+export const useSimulateSwapModuleTransferOwnership =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: swapModuleAbi,
+    functionName: 'transferOwnership',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link swapModuleAbi}__ and `functionName` set to `"withdrawInventory"`
+ */
+export const useSimulateSwapModuleWithdrawInventory =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: swapModuleAbi,
+    functionName: 'withdrawInventory',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link swapModuleAbi}__
+ */
+export const useWatchSwapModuleEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({ abi: swapModuleAbi })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link swapModuleAbi}__ and `eventName` set to `"FeeUpdated"`
+ */
+export const useWatchSwapModuleFeeUpdatedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: swapModuleAbi,
+    eventName: 'FeeUpdated',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link swapModuleAbi}__ and `eventName` set to `"InventoryWithdrawn"`
+ */
+export const useWatchSwapModuleInventoryWithdrawnEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: swapModuleAbi,
+    eventName: 'InventoryWithdrawn',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link swapModuleAbi}__ and `eventName` set to `"OwnershipTransferred"`
+ */
+export const useWatchSwapModuleOwnershipTransferredEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: swapModuleAbi,
+    eventName: 'OwnershipTransferred',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link swapModuleAbi}__ and `eventName` set to `"Swapped"`
+ */
+export const useWatchSwapModuleSwappedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: swapModuleAbi,
+    eventName: 'Swapped',
   })
 
 /**

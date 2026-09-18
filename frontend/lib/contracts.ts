@@ -13,6 +13,7 @@ export const CONTRACTS = {
   market: "0xe977d260F4f4F5813Aa5eF8045aE8B88d02a2B46", // council audit: LenderVault redemptions now halt-gated (were previously exploitable as a bank-run vector)
   multisig: "0x46Af2FD4bF206321Bcd24A58F4497B2681C7716F",
   timelock: "0x6e4591c9A44C28f29F570B19ab82781BA136305F",
+  swapModule: "0x7b04e499a1D596D9B5ED3B80EAa2d17d0d10B7A2", // v2 Milestone 0 -- oracle-priced wNVDAx<->USDG swap, seeded with 40 wNVDAx, backs LeverageZap (Milestone 1)
 } as const;
 
 export const USDG_DECIMALS = 6;

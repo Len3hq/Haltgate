@@ -19,6 +19,7 @@ export default defineConfig({
         "MockWrappedXStock.sol/**",
         "MockUSDG.sol/**",
         "WNVDAxFaucet.sol/**",
+        "SwapModule.sol/**",
       ],
       forge: {
         build: false, // build separately via `forge build` -- avoid re-running it on every codegen

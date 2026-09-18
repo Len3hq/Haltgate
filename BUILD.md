@@ -192,12 +192,13 @@ All four plug into the existing app — none of them replace or restructure `Mar
 
 **Build note that applies from Milestone 1 onward:** even though only one market (wNVDAx/USDG) exists until Milestone 4, `LeverageZap` and the Milestone 3 fixed-term position tracking should both take a **market address as a parameter** from the start, not assume a single hardcoded market. Building this in from Milestone 1 avoids retrofitting the periphery/core contracts later when Milestone 4 adds more markets — the cost of designing for it now is near zero, the cost of bolting it on after is a re-audit of both contracts.
 
-### Milestone 0 — SwapModule (shared prerequisite for Milestones 1–2)
+### Milestone 0 — SwapModule (shared prerequisite for Milestones 1–2) — ✅ done, 2026-09-18
 Internal oracle-priced wNVDAx↔USDG swap — no real DEX has liquidity for the mock testnet token, so this stands in for one.
-- [ ] Contract: swap priced off the existing oracle, with a fee/spread.
-- [ ] Gate it on `HaltController.canSupplyOrBorrow()` — no swapping into more exposure while the market is halted.
-- [ ] Tests: correct pricing, fee application, halted-market revert.
-- [ ] Deploy to testnet, verify wiring.
+- [x] Contract: swap priced off the existing oracle, with a fee/spread. `src/periphery/SwapModule.sol` — bidirectional (`swapDebtForCollateral`/`swapCollateralForDebt`), fee confirmed at **0.30%** (`MAX_FEE` hard ceiling 5%), owner-adjustable inventory via `withdrawInventory`.
+- [x] Gate it on `HaltController.canSupplyOrBorrow()` — no swapping into more exposure while the market is halted. Plus an independent oracle-freshness check (mirrors `Market._requireFreshPrice`) so a direct oracle pause can't be swapped against even before `HaltController.sync()` reflects it.
+- [x] Tests: 14/14 passing (`test/periphery/SwapModule.t.sol`) — pricing correctness both directions, fee application, halted-market revert, oracle-paused-directly revert, stale-oracle revert, insufficient-inventory revert, 6-decimal debt token correctness, fee-cap governance. Slither clean (one divide-before-multiply finding, fixed by combining into a single multiply-then-divide expression, same pattern already used in InterestRateModel/Market).
+- [x] Governance: owner = multisig directly, no timelock (confirmed tier — fast to tune during active feature development, still gated behind the multisig rather than a bare key).
+- [x] Deploy to testnet, verify wiring. Deployed `0x7b04e499a1D596D9B5ED3B80EAa2d17d0d10B7A2`, seeded with 40 wNVDAx from the deployer's own balance (60 wNVDAx kept back for other testing). Wired into `frontend/lib/contracts.ts` and `wagmi.config.ts`; hooks regenerated.
 
 ### Milestone 1 — Leverage Zap (single-loop "buy more in one click")
 - [ ] New periphery contract `LeverageZap.sol`: one atomic transaction — supply collateral → borrow USDG → swap it for more wNVDAx via SwapModule → supply that too.
