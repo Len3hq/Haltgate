@@ -87,6 +87,16 @@ contract Market is Ownable, ReentrancyGuard {
     mapping(address => Position) public positions;
     uint256 public totalCollateral;
 
+    /// @notice owner => operator => approved. Lets a position owner
+    /// authorize another address (e.g. a LeverageZap periphery contract) to
+    /// supply/borrow on their behalf -- same idea as an ERC20 approve, fully
+    /// revocable, and never grantable by anyone but the position owner
+    /// themselves. Exists specifically so an atomic leverage loop can credit
+    /// the actual user's position instead of the zap contract's own address,
+    /// which is what calling supply()/borrow() directly from a periphery
+    /// contract would otherwise do.
+    mapping(address => mapping(address => bool)) public isOperator;
+
     event Supplied(address indexed user, uint256 amount);
     event Withdrawn(address indexed user, uint256 amount);
     event Borrowed(address indexed user, uint256 amount);
@@ -99,8 +109,10 @@ contract Market is Ownable, ReentrancyGuard {
     event ReserveFactorUpdated(uint256 newReserveFactor);
     event ReservesWithdrawn(address indexed to, uint256 amount);
     event InterestAccrued(uint256 interestAccumulated, uint256 reservesAdded, uint256 borrowIndex, uint256 totalBorrows);
+    event OperatorSet(address indexed owner, address indexed operator, bool approved);
 
     error MarketHalted();
+    error NotAuthorized();
     error ExceedsMaxLTV();
     error InsufficientCollateral();
     error InsufficientLiquidity();
@@ -116,6 +128,11 @@ contract Market is Ownable, ReentrancyGuard {
 
     modifier whenSupplyOrBorrowAllowed() {
         if (!haltController.canSupplyOrBorrow()) revert MarketHalted();
+        _;
+    }
+
+    modifier onlySelfOrOperator(address onBehalfOf) {
+        if (msg.sender != onBehalfOf && !isOperator[onBehalfOf][msg.sender]) revert NotAuthorized();
         _;
     }
 
@@ -203,12 +220,40 @@ contract Market is Ownable, ReentrancyGuard {
         emit ReservesWithdrawn(to, amount);
     }
 
+    /// @notice Grants or revokes another address permission to call
+    /// supplyFor()/borrowFor() against the caller's own position. Only the
+    /// position owner can grant this over themselves -- there is no path for
+    /// an operator to be set on someone else's behalf.
+    function setOperator(address operator, bool approved) external {
+        if (operator == address(0)) revert ZeroAddress();
+        isOperator[msg.sender][operator] = approved;
+        emit OperatorSet(msg.sender, operator, approved);
+    }
+
     function supply(uint256 amount) external nonReentrant whenSupplyOrBorrowAllowed {
+        _supply(msg.sender, msg.sender, amount);
+    }
+
+    /// @notice Same effect as supply(), but collateral is pulled from
+    /// msg.sender (the caller) while the resulting position is credited to
+    /// onBehalfOf -- e.g. a LeverageZap holding collateral it just swapped
+    /// into, crediting the user who authorized it rather than itself.
+    /// Requires onBehalfOf to have called setOperator(msg.sender, true) first.
+    function supplyFor(address onBehalfOf, uint256 amount)
+        external
+        nonReentrant
+        whenSupplyOrBorrowAllowed
+        onlySelfOrOperator(onBehalfOf)
+    {
+        _supply(msg.sender, onBehalfOf, amount);
+    }
+
+    function _supply(address payer, address onBehalfOf, uint256 amount) internal {
         if (amount == 0) revert ZeroAmount();
-        positions[msg.sender].collateral += amount;
+        positions[onBehalfOf].collateral += amount;
         totalCollateral += amount;
-        collateralToken.safeTransferFrom(msg.sender, address(this), amount);
-        emit Supplied(msg.sender, amount);
+        collateralToken.safeTransferFrom(payer, address(this), amount);
+        emit Supplied(onBehalfOf, amount);
     }
 
     /// @notice Withdraw supplied collateral. If the position carries no debt,
@@ -239,6 +284,24 @@ contract Market is Ownable, ReentrancyGuard {
     }
 
     function borrow(uint256 amount) external nonReentrant whenSupplyOrBorrowAllowed {
+        _borrow(msg.sender, msg.sender, amount);
+    }
+
+    /// @notice Same effect as borrow(), but the debt is recorded against
+    /// onBehalfOf while the borrowed cash is sent to msg.sender (the caller)
+    /// -- e.g. a LeverageZap that needs the cash in hand to immediately swap
+    /// it into more collateral, atomically, within the same transaction.
+    /// Requires onBehalfOf to have called setOperator(msg.sender, true) first.
+    function borrowFor(address onBehalfOf, uint256 amount)
+        external
+        nonReentrant
+        whenSupplyOrBorrowAllowed
+        onlySelfOrOperator(onBehalfOf)
+    {
+        _borrow(msg.sender, onBehalfOf, amount);
+    }
+
+    function _borrow(address recipient, address onBehalfOf, uint256 amount) internal {
         if (amount == 0) revert ZeroAmount();
         accrueInterest();
         _requireFreshPrice();
@@ -246,15 +309,15 @@ contract Market is Ownable, ReentrancyGuard {
         uint256 availableCash = debtToken.balanceOf(address(lenderVault));
         if (amount > availableCash) revert InsufficientLiquidity();
 
-        Position storage pos = positions[msg.sender];
-        uint256 syncedDebt = _syncUserDebt(msg.sender);
+        Position storage pos = positions[onBehalfOf];
+        uint256 syncedDebt = _syncUserDebt(onBehalfOf);
         uint256 newDebt = syncedDebt + amount;
         if (newDebt > _maxBorrowableNative(pos.collateral)) revert ExceedsMaxLTV();
 
         pos.principal = newDebt;
         totalBorrows += amount;
-        lenderVault.borrowCash(msg.sender, amount);
-        emit Borrowed(msg.sender, amount);
+        lenderVault.borrowCash(recipient, amount);
+        emit Borrowed(onBehalfOf, amount);
     }
 
     /// @notice Always allowed, even mid-halt -- repay only ever reduces risk.

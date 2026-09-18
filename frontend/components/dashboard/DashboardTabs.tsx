@@ -5,11 +5,13 @@ import { PositionPanel } from "./PositionPanel";
 import { ActionPanel } from "./ActionPanel";
 import { EarnPanel } from "./EarnPanel";
 import { LiquidatePanel } from "./LiquidatePanel";
+import { LeveragePanel } from "./LeveragePanel";
 
-type Persona = "borrow" | "earn" | "liquidate";
+type Persona = "borrow" | "leverage" | "earn" | "liquidate";
 
 const PERSONAS: { key: Persona; label: string; hint: string }[] = [
   { key: "borrow", label: "Borrow", hint: "Supply collateral, borrow USDG" },
+  { key: "leverage", label: "Leverage", hint: "One-click loop into more wNVDAx exposure" },
   { key: "earn", label: "Earn", hint: "Deposit USDG, earn interest" },
   { key: "liquidate", label: "Liquidate", hint: "Repay an unsafe position for a discount" },
 ];
@@ -46,6 +48,7 @@ export function DashboardTabs() {
             <ActionPanel />
           </div>
         )}
+        {persona === "leverage" && <LeveragePanel />}
         {persona === "earn" && <EarnPanel />}
         {persona === "liquidate" && <LiquidatePanel />}
       </div>

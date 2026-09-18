@@ -921,6 +921,71 @@ export const lenderVaultAbi = [
 ] as const
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// LeverageZap
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+export const leverageZapAbi = [
+  {
+    type: 'function',
+    inputs: [
+      { name: 'market', internalType: 'contract Market', type: 'address' },
+      {
+        name: 'swapModule',
+        internalType: 'contract SwapModule',
+        type: 'address',
+      },
+      { name: 'initialCollateralIn', internalType: 'uint256', type: 'uint256' },
+      { name: 'borrowAmount', internalType: 'uint256', type: 'uint256' },
+      { name: 'minCollateralOut', internalType: 'uint256', type: 'uint256' },
+    ],
+    name: 'leverage',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      { name: 'user', internalType: 'address', type: 'address', indexed: true },
+      {
+        name: 'market',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      {
+        name: 'initialCollateralIn',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+      {
+        name: 'borrowed',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+      {
+        name: 'collateralFromSwap',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+    ],
+    name: 'Leveraged',
+  },
+  { type: 'error', inputs: [], name: 'MismatchedSwapModule' },
+  { type: 'error', inputs: [], name: 'ReentrancyGuardReentrantCall' },
+  {
+    type: 'error',
+    inputs: [{ name: 'token', internalType: 'address', type: 'address' }],
+    name: 'SafeERC20FailedOperation',
+  },
+  { type: 'error', inputs: [], name: 'SlippageTooHigh' },
+  { type: 'error', inputs: [], name: 'ZeroAddress' },
+] as const
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Market
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -963,6 +1028,16 @@ export const marketAbi = [
     type: 'function',
     inputs: [{ name: 'amount', internalType: 'uint256', type: 'uint256' }],
     name: 'borrow',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'onBehalfOf', internalType: 'address', type: 'address' },
+      { name: 'amount', internalType: 'uint256', type: 'uint256' },
+    ],
+    name: 'borrowFor',
     outputs: [],
     stateMutability: 'nonpayable',
   },
@@ -1047,6 +1122,16 @@ export const marketAbi = [
     type: 'function',
     inputs: [{ name: 'user', internalType: 'address', type: 'address' }],
     name: 'isLiquidatable',
+    outputs: [{ name: '', internalType: 'bool', type: 'bool' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: '', internalType: 'address', type: 'address' },
+      { name: '', internalType: 'address', type: 'address' },
+    ],
+    name: 'isOperator',
     outputs: [{ name: '', internalType: 'bool', type: 'bool' }],
     stateMutability: 'view',
   },
@@ -1199,6 +1284,16 @@ export const marketAbi = [
   {
     type: 'function',
     inputs: [
+      { name: 'operator', internalType: 'address', type: 'address' },
+      { name: 'approved', internalType: 'bool', type: 'bool' },
+    ],
+    name: 'setOperator',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [
       { name: 'newReserveFactor', internalType: 'uint256', type: 'uint256' },
     ],
     name: 'setReserveFactor',
@@ -1223,6 +1318,16 @@ export const marketAbi = [
     type: 'function',
     inputs: [{ name: 'amount', internalType: 'uint256', type: 'uint256' }],
     name: 'supply',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'onBehalfOf', internalType: 'address', type: 'address' },
+      { name: 'amount', internalType: 'uint256', type: 'uint256' },
+    ],
+    name: 'supplyFor',
     outputs: [],
     stateMutability: 'nonpayable',
   },
@@ -1386,6 +1491,26 @@ export const marketAbi = [
     anonymous: false,
     inputs: [
       {
+        name: 'owner',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      {
+        name: 'operator',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      { name: 'approved', internalType: 'bool', type: 'bool', indexed: false },
+    ],
+    name: 'OperatorSet',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
         name: 'previousOwner',
         internalType: 'address',
         type: 'address',
@@ -1495,6 +1620,7 @@ export const marketAbi = [
   { type: 'error', inputs: [], name: 'InvalidReserveFactor' },
   { type: 'error', inputs: [], name: 'InvalidRiskParams' },
   { type: 'error', inputs: [], name: 'MarketHalted' },
+  { type: 'error', inputs: [], name: 'NotAuthorized' },
   { type: 'error', inputs: [], name: 'NotLiquidatable' },
   { type: 'error', inputs: [], name: 'OraclePausedDirectly' },
   {
@@ -3224,6 +3350,51 @@ export const useWatchLenderVaultWithdrawEvent =
   })
 
 /**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link leverageZapAbi}__
+ */
+export const useWriteLeverageZap = /*#__PURE__*/ createUseWriteContract({
+  abi: leverageZapAbi,
+})
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link leverageZapAbi}__ and `functionName` set to `"leverage"`
+ */
+export const useWriteLeverageZapLeverage = /*#__PURE__*/ createUseWriteContract(
+  { abi: leverageZapAbi, functionName: 'leverage' },
+)
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link leverageZapAbi}__
+ */
+export const useSimulateLeverageZap = /*#__PURE__*/ createUseSimulateContract({
+  abi: leverageZapAbi,
+})
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link leverageZapAbi}__ and `functionName` set to `"leverage"`
+ */
+export const useSimulateLeverageZapLeverage =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: leverageZapAbi,
+    functionName: 'leverage',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link leverageZapAbi}__
+ */
+export const useWatchLeverageZapEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({ abi: leverageZapAbi })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link leverageZapAbi}__ and `eventName` set to `"Leveraged"`
+ */
+export const useWatchLeverageZapLeveragedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: leverageZapAbi,
+    eventName: 'Leveraged',
+  })
+
+/**
  * Wraps __{@link useReadContract}__ with `abi` set to __{@link marketAbi}__
  */
 export const useReadMarket = /*#__PURE__*/ createUseReadContract({
@@ -3325,6 +3496,14 @@ export const useReadMarketInterestRateModel =
 export const useReadMarketIsLiquidatable = /*#__PURE__*/ createUseReadContract({
   abi: marketAbi,
   functionName: 'isLiquidatable',
+})
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link marketAbi}__ and `functionName` set to `"isOperator"`
+ */
+export const useReadMarketIsOperator = /*#__PURE__*/ createUseReadContract({
+  abi: marketAbi,
+  functionName: 'isOperator',
 })
 
 /**
@@ -3475,6 +3654,14 @@ export const useWriteMarketBorrow = /*#__PURE__*/ createUseWriteContract({
 })
 
 /**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link marketAbi}__ and `functionName` set to `"borrowFor"`
+ */
+export const useWriteMarketBorrowFor = /*#__PURE__*/ createUseWriteContract({
+  abi: marketAbi,
+  functionName: 'borrowFor',
+})
+
+/**
  * Wraps __{@link useWriteContract}__ with `abi` set to __{@link marketAbi}__ and `functionName` set to `"liquidate"`
  */
 export const useWriteMarketLiquidate = /*#__PURE__*/ createUseWriteContract({
@@ -3527,6 +3714,14 @@ export const useWriteMarketSetMaxOracleStaleness =
   })
 
 /**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link marketAbi}__ and `functionName` set to `"setOperator"`
+ */
+export const useWriteMarketSetOperator = /*#__PURE__*/ createUseWriteContract({
+  abi: marketAbi,
+  functionName: 'setOperator',
+})
+
+/**
  * Wraps __{@link useWriteContract}__ with `abi` set to __{@link marketAbi}__ and `functionName` set to `"setReserveFactor"`
  */
 export const useWriteMarketSetReserveFactor =
@@ -3548,6 +3743,14 @@ export const useWriteMarketSetRiskParams = /*#__PURE__*/ createUseWriteContract(
 export const useWriteMarketSupply = /*#__PURE__*/ createUseWriteContract({
   abi: marketAbi,
   functionName: 'supply',
+})
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link marketAbi}__ and `functionName` set to `"supplyFor"`
+ */
+export const useWriteMarketSupplyFor = /*#__PURE__*/ createUseWriteContract({
+  abi: marketAbi,
+  functionName: 'supplyFor',
 })
 
 /**
@@ -3599,6 +3802,15 @@ export const useSimulateMarketBorrow = /*#__PURE__*/ createUseSimulateContract({
   abi: marketAbi,
   functionName: 'borrow',
 })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link marketAbi}__ and `functionName` set to `"borrowFor"`
+ */
+export const useSimulateMarketBorrowFor =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: marketAbi,
+    functionName: 'borrowFor',
+  })
 
 /**
  * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link marketAbi}__ and `functionName` set to `"liquidate"`
@@ -3654,6 +3866,15 @@ export const useSimulateMarketSetMaxOracleStaleness =
   })
 
 /**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link marketAbi}__ and `functionName` set to `"setOperator"`
+ */
+export const useSimulateMarketSetOperator =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: marketAbi,
+    functionName: 'setOperator',
+  })
+
+/**
  * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link marketAbi}__ and `functionName` set to `"setReserveFactor"`
  */
 export const useSimulateMarketSetReserveFactor =
@@ -3678,6 +3899,15 @@ export const useSimulateMarketSupply = /*#__PURE__*/ createUseSimulateContract({
   abi: marketAbi,
   functionName: 'supply',
 })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link marketAbi}__ and `functionName` set to `"supplyFor"`
+ */
+export const useSimulateMarketSupplyFor =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: marketAbi,
+    functionName: 'supplyFor',
+  })
 
 /**
  * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link marketAbi}__ and `functionName` set to `"transferOwnership"`
@@ -3765,6 +3995,15 @@ export const useWatchMarketMaxOracleStalenessUpdatedEvent =
   /*#__PURE__*/ createUseWatchContractEvent({
     abi: marketAbi,
     eventName: 'MaxOracleStalenessUpdated',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link marketAbi}__ and `eventName` set to `"OperatorSet"`
+ */
+export const useWatchMarketOperatorSetEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: marketAbi,
+    eventName: 'OperatorSet',
   })
 
 /**

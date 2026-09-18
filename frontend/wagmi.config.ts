@@ -20,6 +20,7 @@ export default defineConfig({
         "MockUSDG.sol/**",
         "WNVDAxFaucet.sol/**",
         "SwapModule.sol/**",
+        "LeverageZap.sol/**",
       ],
       forge: {
         build: false, // build separately via `forge build` -- avoid re-running it on every codegen

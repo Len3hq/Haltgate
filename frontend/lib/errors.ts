@@ -19,6 +19,13 @@ const ERROR_MESSAGES: Record<string, string> = {
   NotLiquidatable: "This position isn't liquidatable -- its health factor is still safe.",
   StaleOracle: "The price feed is stale. Try again shortly.",
   OraclePausedDirectly: "The price feed is paused.",
+  NotAuthorized: "You haven't authorized this action on your account yet.",
+  // SwapModule.sol
+  FeeTooHigh: "That fee is above the allowed maximum.",
+  InsufficientInventory: "The swap doesn't have enough of that token available right now.",
+  // LeverageZap.sol
+  MismatchedSwapModule: "That swap contract doesn't match this market's collateral/debt pair.",
+  SlippageTooHigh: "The swap output was lower than the minimum you allowed -- try again.",
   // HaltController.sol
   WrongState: "The market isn't in the right state for that action right now.",
   // MockPausableOracle.sol
