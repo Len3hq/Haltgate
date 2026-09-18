@@ -9,9 +9,10 @@ import {
   useSimulateHaltControllerForceSettle,
   useWriteHaltControllerForceSettle,
 } from "@/lib/generated";
-import { CONTRACTS } from "@/lib/contracts";
+
 import { getErrorMessage } from "@/lib/errors";
 import { TxStatus } from "@/components/dashboard/TxStatus";
+import { useMarketContracts } from "@/lib/market-context";
 
 // Mirrors HaltController.MarketState exactly (src/core/HaltController.sol).
 const STATE_LABEL = ["OPEN", "HALTING", "HALTED", "RESUMING", "SETTLING"] as const;
@@ -64,6 +65,7 @@ function settlementStatus(availableAt: bigint | undefined): { message: string; u
 }
 
 export function HaltStatusBanner() {
+  const CONTRACTS = useMarketContracts();
   const { address } = useAccount();
   const queryClient = useQueryClient();
 

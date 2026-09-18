@@ -33,7 +33,7 @@ contract MultisigMarketIntegrationTest is Test {
     function setUp() public {
         vm.startPrank(deployer);
         oracle = new MockPausableOracle(180e18, deployer);
-        wNVDAx = new MockWrappedXStock(deployer);
+        wNVDAx = new MockWrappedXStock("Mock Wrapped NVIDIA xStock", "wNVDAx-MOCK", deployer);
         usdg = new MockUSDG(deployer, 18);
         controller = new HaltController(address(oracle), deployer, deployer);
         vault = new LenderVault(address(usdg), deployer);

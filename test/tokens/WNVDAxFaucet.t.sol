@@ -15,7 +15,7 @@ contract WNVDAxFaucetTest is Test {
 
     function setUp() public {
         vm.prank(owner);
-        wNVDAx = new MockWrappedXStock(owner);
+        wNVDAx = new MockWrappedXStock("Mock Wrapped NVIDIA xStock", "wNVDAx-MOCK", owner);
         faucet = new WNVDAxFaucet(address(wNVDAx));
 
         vm.prank(owner);

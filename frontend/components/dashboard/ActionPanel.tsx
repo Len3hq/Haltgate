@@ -13,27 +13,32 @@ import {
   useReadMarketGetPosition,
   useReadHaltControllerCanSupplyOrBorrow,
 } from "@/lib/generated";
-import { CONTRACTS, USDG_DECIMALS, WNVDAX_DECIMALS } from "@/lib/contracts";
+import { USDG_DECIMALS, WNVDAX_DECIMALS } from "@/lib/contracts";
 import { formatAmount } from "@/lib/format";
 import { getErrorMessage } from "@/lib/errors";
 import { TxStatus } from "@/components/dashboard/TxStatus";
+import { useMarketContracts } from "@/lib/market-context";
 
 type Tab = "supply" | "withdraw" | "borrow" | "repay";
 
-const TAB_CONFIG: Record<Tab, { label: string; token: "wNVDAx" | "USDG"; tokenAddress: `0x${string}`; decimals: number; needsApproval: boolean }> = {
-  supply: { label: "Supply", token: "wNVDAx", tokenAddress: CONTRACTS.wNVDAx, decimals: WNVDAX_DECIMALS, needsApproval: true },
-  withdraw: { label: "Withdraw", token: "wNVDAx", tokenAddress: CONTRACTS.wNVDAx, decimals: WNVDAX_DECIMALS, needsApproval: false },
-  borrow: { label: "Borrow", token: "USDG", tokenAddress: CONTRACTS.usdg, decimals: USDG_DECIMALS, needsApproval: false },
-  repay: { label: "Repay", token: "USDG", tokenAddress: CONTRACTS.usdg, decimals: USDG_DECIMALS, needsApproval: true },
+// Token addresses now vary by selected market, so only the static shape lives
+// here -- the address is resolved per render in the component below.
+const TAB_CONFIG: Record<Tab, { label: string; token: "collateral" | "USDG"; decimals: number; needsApproval: boolean }> = {
+  supply: { label: "Supply", token: "collateral", decimals: WNVDAX_DECIMALS, needsApproval: true },
+  withdraw: { label: "Withdraw", token: "collateral", decimals: WNVDAX_DECIMALS, needsApproval: false },
+  borrow: { label: "Borrow", token: "USDG", decimals: USDG_DECIMALS, needsApproval: false },
+  repay: { label: "Repay", token: "USDG", decimals: USDG_DECIMALS, needsApproval: true },
 };
 
 export function ActionPanel() {
+  const CONTRACTS = useMarketContracts();
   const { address, isConnected } = useAccount();
   const [tab, setTab] = useState<Tab>("supply");
   const [amount, setAmount] = useState("");
   const queryClient = useQueryClient();
 
   const config = TAB_CONFIG[tab];
+  const tokenAddress = config.token === "USDG" ? CONTRACTS.usdg : CONTRACTS.wNVDAx;
   const { data: canSupplyOrBorrow } = useReadHaltControllerCanSupplyOrBorrow({
     address: CONTRACTS.haltController,
     query: { refetchInterval: 6_000 },
@@ -41,7 +46,7 @@ export function ActionPanel() {
   const actionDisabledByHalt = (tab === "supply" || tab === "borrow") && canSupplyOrBorrow === false;
 
   const { data: balance, refetch: refetchBalance } = useReadContract({
-    address: config.tokenAddress,
+    address: tokenAddress,
     abi: erc20Abi,
     functionName: "balanceOf",
     args: address ? [address] : undefined,
@@ -64,7 +69,7 @@ export function ActionPanel() {
   const currentDebt = position?.[1];
 
   const { data: allowance, refetch: refetchAllowance } = useReadContract({
-    address: config.tokenAddress,
+    address: tokenAddress,
     abi: erc20Abi,
     functionName: "allowance",
     args: address ? [address, CONTRACTS.market] : undefined,
@@ -146,7 +151,7 @@ export function ActionPanel() {
 
   function handleApprove() {
     approve.writeContract({
-      address: config.tokenAddress,
+      address: tokenAddress,
       abi: erc20Abi,
       functionName: "approve",
       args: [CONTRACTS.market, parsedAmount],

@@ -11,7 +11,8 @@ import {
   useReadInterestRateModelJumpMultiplierPerSecond,
   useReadInterestRateModelKink,
 } from "@/lib/generated";
-import { CONTRACTS } from "@/lib/contracts";
+import { useMarketContracts } from "@/lib/market-context";
+
 
 const SECONDS_PER_YEAR = 31_536_000;
 const SAMPLES = 41; // resolution for the drawn path only -- exact points are computed in closed form, not interpolated
@@ -49,6 +50,7 @@ function supplyAprAt(util: number, base: number, mult: number, jump: number, kin
 /// Hand-rolled SVG (matches HealthGauge's existing no-dependency approach)
 /// with pointer-driven hover instead of a static render.
 export function RateCurveChart() {
+  const CONTRACTS = useMarketContracts();
   const [hoverUtil, setHoverUtil] = useState<number | null>(null);
 
   const { data: baseRaw } = useReadInterestRateModelBaseRatePerSecond({ address: CONTRACTS.interestRateModel });

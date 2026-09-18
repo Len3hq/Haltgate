@@ -63,7 +63,7 @@ contract MarketReentrancyTest is Test {
     function setUp() public {
         vm.startPrank(owner);
         oracle = new MockPausableOracle(180e18, owner);
-        wNVDAx = new MockWrappedXStock(owner);
+        wNVDAx = new MockWrappedXStock("Mock Wrapped NVIDIA xStock", "wNVDAx-MOCK", owner);
         evilUsdg = new MaliciousReentrantToken();
         controller = new HaltController(address(oracle), owner, keeper);
         vault = new LenderVault(address(evilUsdg), owner);

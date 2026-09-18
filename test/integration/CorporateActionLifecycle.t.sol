@@ -36,7 +36,7 @@ contract CorporateActionLifecycleTest is Test {
     function setUp() public {
         vm.startPrank(owner);
         oracle = new MockPausableOracle(PRE_CA_PRICE, owner);
-        wNVDAx = new MockWrappedXStock(owner);
+        wNVDAx = new MockWrappedXStock("Mock Wrapped NVIDIA xStock", "wNVDAx-MOCK", owner);
         usdg = new MockUSDG(owner, 18);
         controller = new HaltController(address(oracle), owner, keeper);
         vault = new LenderVault(address(usdg), owner);

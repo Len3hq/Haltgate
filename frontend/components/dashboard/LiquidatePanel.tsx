@@ -11,13 +11,15 @@ import {
   useReadHaltControllerCanLiquidate,
   useWriteMarketLiquidate,
 } from "@/lib/generated";
-import { CONTRACTS, USDG_DECIMALS } from "@/lib/contracts";
+import { USDG_DECIMALS } from "@/lib/contracts";
 import { getErrorMessage } from "@/lib/errors";
 import { TxStatus } from "@/components/dashboard/TxStatus";
+import { useMarketContracts } from "@/lib/market-context";
 
 const MAX_UINT256 = (1n << 256n) - 1n;
 
 export function LiquidatePanel() {
+  const CONTRACTS = useMarketContracts();
   const { address: connected } = useAccount();
   const [target, setTarget] = useState("");
   const [amount, setAmount] = useState("");

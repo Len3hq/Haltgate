@@ -16,10 +16,11 @@ import {
   useWriteMarketSetOperator,
   useWriteLeverageZapMultiply,
 } from "@/lib/generated";
-import { CONTRACTS, USDG_DECIMALS, WNVDAX_DECIMALS } from "@/lib/contracts";
+import { USDG_DECIMALS, WNVDAX_DECIMALS } from "@/lib/contracts";
 import { formatAmount, formatBps, formatPrice } from "@/lib/format";
 import { getErrorMessage } from "@/lib/errors";
 import { TxStatus } from "@/components/dashboard/TxStatus";
+import { useMarketContracts } from "@/lib/market-context";
 
 const WAD = 10n ** 18n;
 const MAX_UINT256 = (1n << 256n) - 1n;
@@ -40,6 +41,7 @@ function fromWad(amountWad: bigint, decimals: number): bigint {
 /// real user's position when they've explicitly allowed this contract to act
 /// on their behalf.
 export function LeveragePanel() {
+  const CONTRACTS = useMarketContracts();
   const { address, isConnected } = useAccount();
   const [amount, setAmount] = useState("");
   const [targetLeverage, setTargetLeverage] = useState(1.5); // multiple, e.g. 1.5x

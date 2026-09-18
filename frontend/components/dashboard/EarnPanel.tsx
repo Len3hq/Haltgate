@@ -17,14 +17,16 @@ import {
   useReadHaltControllerCanLiquidate,
   useReadHaltControllerIsSettling,
 } from "@/lib/generated";
-import { CONTRACTS, USDG_DECIMALS } from "@/lib/contracts";
+import { USDG_DECIMALS } from "@/lib/contracts";
 import { formatAmount, formatApr } from "@/lib/format";
 import { getErrorMessage } from "@/lib/errors";
 import { TxStatus } from "@/components/dashboard/TxStatus";
+import { useMarketContracts } from "@/lib/market-context";
 
 type Tab = "deposit" | "withdraw";
 
 export function EarnPanel() {
+  const CONTRACTS = useMarketContracts();
   const { address, isConnected } = useAccount();
   const [tab, setTab] = useState<Tab>("deposit");
   const [amount, setAmount] = useState("");

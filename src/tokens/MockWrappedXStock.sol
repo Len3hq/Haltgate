@@ -18,7 +18,7 @@ contract MockWrappedXStock is ERC20, Ownable {
 
     event ExchangeRateUpdated(uint256 previousRate, uint256 newRate);
 
-    constructor(address owner_) ERC20("Mock Wrapped NVIDIA xStock", "wNVDAx-MOCK") Ownable(owner_) {
+    constructor(string memory name_, string memory symbol_, address owner_) ERC20(name_, symbol_) Ownable(owner_) {
         exchangeRate = 1e18;
     }
 

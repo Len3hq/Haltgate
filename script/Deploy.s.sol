@@ -98,7 +98,7 @@ contract Deploy is Script {
         d.usingMockUsdg = usdgOverride == address(0);
 
         MockPausableOracle oracle = new MockPausableOracle(INITIAL_PRICE, d.deployer);
-        MockWrappedXStock wNVDAx = new MockWrappedXStock(d.deployer);
+        MockWrappedXStock wNVDAx = new MockWrappedXStock("Mock Wrapped NVIDIA xStock", "wNVDAx-MOCK", d.deployer);
         d.oracle = address(oracle);
         d.wNVDAx = address(wNVDAx);
 

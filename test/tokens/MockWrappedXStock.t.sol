@@ -11,7 +11,7 @@ contract MockWrappedXStockTest is Test {
     address holder = address(0xCAFE);
 
     function setUp() public {
-        token = new MockWrappedXStock(owner);
+        token = new MockWrappedXStock("Mock Wrapped NVIDIA xStock", "wNVDAx-MOCK", owner);
     }
 
     function test_InitialState() public view {

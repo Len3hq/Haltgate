@@ -8,8 +8,9 @@ import {
   useReadMarketLiquidationThreshold,
   useReadMarketReserveFactor,
 } from "@/lib/generated";
-import { CONTRACTS, USDG_DECIMALS, WNVDAX_DECIMALS } from "@/lib/contracts";
+import { USDG_DECIMALS, WNVDAX_DECIMALS } from "@/lib/contracts";
 import { formatAmount, formatBps, formatPrice } from "@/lib/format";
+import { useMarketContracts } from "@/lib/market-context";
 
 function StatCard({ label, value, sublabel }: { label: string; value: string; sublabel?: string }) {
   return (
@@ -36,6 +37,7 @@ function toWad(amount: bigint, decimals: number): bigint {
 /// moved to a single compact strip, since they're configuration to glance
 /// at, not headline figures worth the same visual weight as live totals.
 export function MarketOverview() {
+  const CONTRACTS = useMarketContracts();
   const { data: priceData } = useReadIPausableOracleLatestPrice({
     address: CONTRACTS.oracle,
     query: { refetchInterval: 10_000 },

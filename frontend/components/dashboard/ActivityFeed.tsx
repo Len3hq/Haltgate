@@ -11,9 +11,10 @@ import {
   useWatchMarketRepaidEvent,
   useWatchMarketLiquidatedEvent,
 } from "@/lib/generated";
-import { CONTRACTS, USDG_DECIMALS, WNVDAX_DECIMALS } from "@/lib/contracts";
+import { USDG_DECIMALS, WNVDAX_DECIMALS } from "@/lib/contracts";
 import { formatAmount } from "@/lib/format";
 import { xLayerTestnet } from "@/lib/chains";
+import { useMarketContracts } from "@/lib/market-context";
 
 type Kind = "Supply" | "Withdraw" | "Borrow" | "Repay" | "Liquidate";
 
@@ -69,12 +70,12 @@ function toItem(log: MarketLog): Item | null {
   }
 }
 
-async function fetchHistory(client: PublicClient, fromBlock: bigint, toBlock: bigint): Promise<MarketLog[]> {
+async function fetchHistory(client: PublicClient, market: `0x${string}`, fromBlock: bigint, toBlock: bigint): Promise<MarketLog[]> {
   const chunks: Promise<MarketLog[]>[] = [];
   for (let start = fromBlock; start <= toBlock; start += MAX_LOG_RANGE + 1n) {
     const end = start + MAX_LOG_RANGE > toBlock ? toBlock : start + MAX_LOG_RANGE;
     chunks.push(
-      client.getContractEvents({ address: CONTRACTS.market, abi: marketAbi, fromBlock: start, toBlock: end }).catch(() => [])
+      client.getContractEvents({ address: market, abi: marketAbi, fromBlock: start, toBlock: end }).catch(() => [])
     );
   }
   const results = await Promise.all(chunks);
@@ -82,17 +83,19 @@ async function fetchHistory(client: PublicClient, fromBlock: bigint, toBlock: bi
 }
 
 export function ActivityFeed() {
+  const CONTRACTS = useMarketContracts();
   const publicClient = usePublicClient();
   const [items, setItems] = useState<Item[] | null>(null);
 
   useEffect(() => {
     if (!publicClient) return;
     let cancelled = false;
+    setItems(null);
 
     async function loadHistory() {
       const latest = await publicClient!.getBlockNumber();
       const fromBlock = latest > HISTORY_BLOCK_WINDOW ? latest - HISTORY_BLOCK_WINDOW : 0n;
-      const logs = await fetchHistory(publicClient!, fromBlock, latest);
+      const logs = await fetchHistory(publicClient!, CONTRACTS.market, fromBlock, latest);
       if (cancelled) return;
 
       const mapped = logs
@@ -107,7 +110,8 @@ export function ActivityFeed() {
     return () => {
       cancelled = true;
     };
-  }, [publicClient]);
+    // Re-fetches when the selected market changes -- history is per-market.
+  }, [publicClient, CONTRACTS.market]);
 
   function prepend(item: Item) {
     setItems((prev) => [item, ...(prev ?? [])].slice(0, MAX_ITEMS));

@@ -2,11 +2,13 @@
 
 import { useAccount } from "wagmi";
 import { useReadMarketGetPosition, useReadMarketHealthFactor } from "@/lib/generated";
-import { CONTRACTS, USDG_DECIMALS, WNVDAX_DECIMALS } from "@/lib/contracts";
+import { USDG_DECIMALS, WNVDAX_DECIMALS } from "@/lib/contracts";
 import { formatAmount } from "@/lib/format";
 import { HealthGauge } from "./HealthGauge";
+import { useMarketContracts } from "@/lib/market-context";
 
 export function PositionPanel() {
+  const CONTRACTS = useMarketContracts();
   const { address, isConnected } = useAccount();
 
   const { data: position } = useReadMarketGetPosition({

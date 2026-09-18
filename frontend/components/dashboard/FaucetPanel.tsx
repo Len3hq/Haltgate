@@ -11,9 +11,10 @@ import {
   useReadWnvdAxFaucetClaimAmount,
   useWriteWnvdAxFaucetClaim,
 } from "@/lib/generated";
-import { CONTRACTS, WNVDAX_DECIMALS } from "@/lib/contracts";
+import { WNVDAX_DECIMALS } from "@/lib/contracts";
 import { formatAmount } from "@/lib/format";
 import { TxStatus } from "@/components/dashboard/TxStatus";
+import { useMarketContracts } from "@/lib/market-context";
 
 // wNVDAx.mint() is deliberately onlyOwner (mirroring how a real collateral
 // token would never let anyone mint it), so every tester previously had to
@@ -22,6 +23,7 @@ import { TxStatus } from "@/components/dashboard/TxStatus";
 // owner funded once, and anyone can self-serve a fixed amount from it,
 // permissionlessly, one claim per address.
 export function FaucetPanel() {
+  const CONTRACTS = useMarketContracts();
   const { address, isConnected } = useAccount();
   const { data: owner } = useReadMockWrappedXStockOwner({ address: CONTRACTS.wNVDAx });
   const isOwner = isConnected && owner && address?.toLowerCase() === owner.toLowerCase();
