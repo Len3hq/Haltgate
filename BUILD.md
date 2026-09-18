@@ -278,6 +278,30 @@ Five isolated markets live: **NVIDIA, Tesla, Apple, Microsoft, S&P 500 ETF**. Ha
 
 ---
 
+### Per-market detail pages, modelled on Kamino — planned, not started
+
+Decided 2026-09-18 from screenshots of Kamino's live Earn / Borrow / Multiply pages and their detail views. Recorded here rather than built, so the decisions don't have to be re-derived.
+
+**What the screenshots settled.** Kamino routes to detail pages (breadcrumb + back arrow), it does not use modals. Three things already built here independently match theirs: the interest-rate-vs-utilization chart, a leverage slider bounded *below* the theoretical max (they show "Max Leverage 2.9x" but cap the slider at 2.7x), and collapsible per-market rows whose header carries collateral / debt / borrow APY / market size. Worth noting they also treat **xStocks as a first-class filter category**.
+
+**Adopt:**
+- [ ] `/app` as markets index, `/app/[market]` as detail page, with breadcrumb and back.
+- [ ] A **persistent five-market status strip** in the header on every page. Routing would otherwise hide the "NVDA halted while borrowing TSLA" moment, which is the whole reason five markets exist.
+- [ ] Detail skeleton from their reserve page: header (name, price, halt badge, oracle), stat row, `Overview | My Position` tab split, sticky right-hand action sidebar with Half/Max.
+- [ ] Add **Liquidity Available** as a headline stat. It's the actual binding constraint here — 15 USDG per market is what stops a leverage loop — and it's currently buried.
+- [ ] Promote `RateCurveChart` out of the sidebar onto the detail page, where Kamino's equivalent sits.
+- [ ] **Asset Details** section: market, vault, oracle, collateral and swap-module addresses, each linked to OKLink. Kamino uses this slot for websites and audits; for a testnet submission it does something more useful — lets a judge verify every claim on-chain in one click.
+
+**Replace rather than copy.** Kamino fills detail pages with utilization history. The same space here should hold a **Halt & Settlement panel**: current state, time in state, what's allowed vs blocked right now, interest-freeze status, settlement countdown and trigger — plus **halt history reconstructed from `StateChanged` events**, which is the one piece of genuine history this protocol has and the direct analogue of their utilization chart.
+
+**Deliberately not adopting**, because each needs data that doesn't exist here or implies mechanics that weren't built: historical APY / utilization / price charts, 30D-90D-180D averages, interest-generated totals, Proof of Reserves, curators and risk managers, vault profiles, management and performance fees, soft liquidations, borrow caps, borrow factor, benchmark APY. Kamino's pages are dense because Kamino has $2.6B and months of history; this has five markets, days old, ~$103 of testnet liquidity and mock prices. Flat lines and empty sections read worse to a judge than a tighter page.
+
+**One deliberate divergence.** Kamino's top nav is product-first (Earn / Borrow / Multiply across all markets). Stay **market-first** — pick a stock, then act. They have 35 markets so product-level entry points are necessary wayfinding; with five that's an extra hop for nothing, and market-first keeps halt status at the top of the hierarchy where the differentiator lives.
+
+**Sequencing when picked up:** routing and page shell first (verify nothing breaks), then move existing panels across, then the Halt & Settlement panel, then halt history and asset details last since they're purely additive. Largest frontend piece yet — new surface rather than rewiring existing surface.
+
+---
+
 ## 12. Mainnet migration path
 
 Everything in §4 and §11 targets X Layer testnet. Migration to X Layer mainnet is a **migration, not a rebuild** — same zkEVM architecture, same Solidity — but several components were deliberately mocked for testnet and need real rework, not just a redeploy with new constructor args.
