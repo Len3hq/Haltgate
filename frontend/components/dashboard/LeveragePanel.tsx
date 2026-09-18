@@ -14,10 +14,10 @@ import {
   useReadIPausableOracleLatestPrice,
   useReadSwapModuleFeeWad,
   useWriteMarketSetOperator,
-  useWriteLeverageZapLeverage,
+  useWriteLeverageZapMultiply,
 } from "@/lib/generated";
 import { CONTRACTS, USDG_DECIMALS, WNVDAX_DECIMALS } from "@/lib/contracts";
-import { formatAmount } from "@/lib/format";
+import { formatAmount, formatBps, formatPrice } from "@/lib/format";
 import { getErrorMessage } from "@/lib/errors";
 import { TxStatus } from "@/components/dashboard/TxStatus";
 
@@ -32,16 +32,17 @@ function fromWad(amountWad: bigint, decimals: number): bigint {
   return decimals === 18 ? amountWad : amountWad / 10n ** BigInt(18 - decimals);
 }
 
-/// One-click leveraged long (BUILD.md §11 Milestone 1): supply wNVDAx,
-/// borrow USDG against it, swap that into more wNVDAx, supply that too --
-/// one confirmation instead of four manual transactions. Needs a one-time
-/// "Enable Leverage" authorization first (Market.setOperator) since
-/// Market.supplyFor()/borrowFor() only credit the real user's position when
-/// they've explicitly allowed this contract to act on their behalf.
+/// One-click leveraged long (BUILD.md §11 Milestones 1-2): supply wNVDAx,
+/// then loop borrow -> swap -> supply until the position reaches the chosen
+/// multiple -- one confirmation instead of repeating four manual steps.
+/// Needs a one-time "Enable Leverage" authorization first
+/// (Market.setOperator) since Market.supplyFor()/borrowFor() only credit the
+/// real user's position when they've explicitly allowed this contract to act
+/// on their behalf.
 export function LeveragePanel() {
   const { address, isConnected } = useAccount();
   const [amount, setAmount] = useState("");
-  const [intensity, setIntensity] = useState(50); // % of available borrowing power to use in this loop
+  const [targetLeverage, setTargetLeverage] = useState(1.5); // multiple, e.g. 1.5x
   const queryClient = useQueryClient();
 
   const { data: canSupplyOrBorrow } = useReadHaltControllerCanSupplyOrBorrow({
@@ -85,6 +86,28 @@ export function LeveragePanel() {
   const { data: feeWad } = useReadSwapModuleFeeWad({ address: CONTRACTS.swapModule });
   const price = priceData?.[0];
 
+  // What the loop can actually draw on -- the vault's liquid cash is usually
+  // what stops it before the LTV ceiling does.
+  const { data: vaultCash } = useReadContract({
+    address: CONTRACTS.usdg,
+    abi: erc20Abi,
+    functionName: "balanceOf",
+    args: [CONTRACTS.lenderVault],
+    query: { refetchInterval: 8_000 },
+  });
+
+  // A market's maxLTV caps achievable leverage at 1 / (1 - maxLTV) -- 2x at a
+  // 50% LTV. That's an asymptote no finite number of loops reaches, so the
+  // slider stops short of it rather than offering a multiple that can never
+  // actually be filled.
+  const maxSelectable = useMemo(() => {
+    if (maxLtv === undefined || maxLtv >= WAD) return 1.5;
+    const theoretical = Number(WAD) / Number(WAD - maxLtv);
+    return Math.max(1.05, Math.floor((1 + (theoretical - 1) * 0.95) * 20) / 20); // round down to a 0.05 step
+  }, [maxLtv]);
+
+  const effectiveTarget = Math.min(targetLeverage, maxSelectable);
+
   const parsedInitial = useMemo(() => {
     if (!amount) return 0n;
     try {
@@ -94,22 +117,35 @@ export function LeveragePanel() {
     }
   }, [amount]);
 
-  // Mirrors Market._collateralValueWad / _maxBorrowableNative exactly, so
-  // the preview below matches what the contract will actually enforce --
-  // see src/core/Market.sol for the source of truth this replicates.
+  // Mirrors what LeverageZap.multiply() will actually do on-chain: work out
+  // the collateral gap to the requested multiple, price it back into debt
+  // through SwapModule's own formula, then cap it the same way the loop does
+  // -- by the position's LTV headroom and the vault's liquid cash. See
+  // src/periphery/LeverageZap.sol for the source of truth this replicates.
   const preview = useMemo(() => {
-    if (price === undefined || maxLtv === undefined || liquidationThreshold === undefined || feeWad === undefined) return null;
+    if (price === undefined || price === 0n || maxLtv === undefined || liquidationThreshold === undefined || feeWad === undefined) {
+      return null;
+    }
 
-    const collateralAfterInitial = existingCollateral + parsedInitial;
-    const collateralValueWad = (toWad(collateralAfterInitial, WNVDAX_DECIMALS) * price) / WAD;
-    const maxBorrowWad = (collateralValueWad * maxLtv) / WAD;
-    const maxBorrowNative = fromWad(maxBorrowWad, USDG_DECIMALS);
-    const availableToBorrow = maxBorrowNative > existingDebt ? maxBorrowNative - existingDebt : 0n;
-    const borrowAmount = (availableToBorrow * BigInt(intensity)) / 100n;
+    const baseCollateral = existingCollateral + parsedInitial;
+    const targetWad = BigInt(Math.round(effectiveTarget * 1e6)) * 10n ** 12n; // 1.55 -> 1.55e18, no float dust
+    const targetCollateral = (baseCollateral * targetWad) / WAD;
+    const gap = targetCollateral > baseCollateral ? targetCollateral - baseCollateral : 0n;
 
-    const debtWad = toWad(borrowAmount, USDG_DECIMALS);
-    const swappedCollateralWad = price === 0n ? 0n : (debtWad * (WAD - feeWad)) / price; // wNVDAx is 18 decimals -- no fromWad needed
-    const projectedCollateral = collateralAfterInitial + swappedCollateralWad;
+    // Inverse of SwapModule's collateralWad = debtWad * (WAD - fee) / price.
+    const debtForGap = fromWad((toWad(gap, WNVDAX_DECIMALS) * price) / (WAD - feeWad), USDG_DECIMALS);
+
+    const collateralValueWad = (toWad(baseCollateral, WNVDAX_DECIMALS) * price) / WAD;
+    const maxDebt = fromWad((collateralValueWad * maxLtv) / WAD, USDG_DECIMALS);
+    const headroom = maxDebt > existingDebt ? maxDebt - existingDebt : 0n;
+
+    let borrowAmount = debtForGap < headroom ? debtForGap : headroom;
+    const cash = vaultCash ?? 0n;
+    const liquidityCapped = borrowAmount > cash;
+    if (liquidityCapped) borrowAmount = cash;
+
+    const swappedCollateral = (toWad(borrowAmount, USDG_DECIMALS) * (WAD - feeWad)) / price;
+    const projectedCollateral = baseCollateral + swappedCollateral;
     const projectedDebt = existingDebt + borrowAmount;
 
     const projectedCollateralValueWad = (toWad(projectedCollateral, WNVDAX_DECIMALS) * price) / WAD;
@@ -117,10 +153,37 @@ export function LeveragePanel() {
     const projectedHealthFactor =
       projectedDebtWad === 0n ? MAX_UINT256 : (projectedCollateralValueWad * liquidationThreshold) / projectedDebtWad;
 
-    const minCollateralOut = (swappedCollateralWad * 99n) / 100n; // 1% slippage floor against a mid-flight fee change
+    // The price wNVDAx would have to fall to before this position becomes
+    // liquidatable -- the inversion of Market.isLiquidatable's own condition
+    // (debtWad > collateralValue * liquidationThreshold) solved for price.
+    // For a directional leveraged position this is the number that actually
+    // says whether the bet is survivable; a health factor alone doesn't.
+    let liquidationPrice: bigint | null = null;
+    let dropToLiquidationPct: number | null = null;
+    if (projectedDebtWad > 0n && projectedCollateral > 0n) {
+      liquidationPrice =
+        (projectedDebtWad * WAD * WAD) / (toWad(projectedCollateral, WNVDAX_DECIMALS) * liquidationThreshold);
+      dropToLiquidationPct =
+        liquidationPrice >= price ? 0 : Number(((price - liquidationPrice) * 10_000n) / price) / 100;
+    }
 
-    return { borrowAmount, swappedCollateral: swappedCollateralWad, projectedCollateral, projectedDebt, projectedHealthFactor, minCollateralOut };
-  }, [price, maxLtv, liquidationThreshold, feeWad, existingCollateral, existingDebt, parsedInitial, intensity]);
+    // Floor passed to the contract: 1% under the projection, so ordinary
+    // rounding doesn't revert a good transaction while a materially
+    // under-delivered one still does.
+    const minFinalCollateral = (projectedCollateral * 99n) / 100n;
+
+    return {
+      targetWad,
+      borrowAmount,
+      projectedCollateral,
+      projectedDebt,
+      projectedHealthFactor,
+      minFinalCollateral,
+      liquidityCapped,
+      liquidationPrice,
+      dropToLiquidationPct,
+    };
+  }, [price, maxLtv, liquidationThreshold, feeWad, vaultCash, existingCollateral, existingDebt, parsedInitial, effectiveTarget]);
 
   const needsApproval = parsedInitial > 0n && (allowance ?? 0n) < parsedInitial;
 
@@ -128,16 +191,16 @@ export function LeveragePanel() {
   const enableOpReceipt = useWaitForTransactionReceipt({ hash: enableOp.data });
   const approve = useWriteContract();
   const approveReceipt = useWaitForTransactionReceipt({ hash: approve.data });
-  const leverage = useWriteLeverageZapLeverage();
+  const leverage = useWriteLeverageZapMultiply();
   const leverageReceipt = useWaitForTransactionReceipt({ hash: leverage.data });
 
   const simulate = useSimulateContract({
     address: CONTRACTS.leverageZap,
     abi: leverageZapAbi,
-    functionName: "leverage",
+    functionName: "multiply",
     args:
       preview && preview.borrowAmount > 0n
-        ? [CONTRACTS.market, CONTRACTS.swapModule, parsedInitial, preview.borrowAmount, preview.minCollateralOut]
+        ? [CONTRACTS.market, CONTRACTS.swapModule, parsedInitial, preview.targetWad, preview.minFinalCollateral]
         : undefined,
     query: { enabled: !!address && isOperator === true && !needsApproval && !!preview && preview.borrowAmount > 0n },
   });
@@ -171,7 +234,7 @@ export function LeveragePanel() {
     if (!preview) return;
     leverage.writeContract({
       address: CONTRACTS.leverageZap,
-      args: [CONTRACTS.market, CONTRACTS.swapModule, parsedInitial, preview.borrowAmount, preview.minCollateralOut],
+      args: [CONTRACTS.market, CONTRACTS.swapModule, parsedInitial, preview.targetWad, preview.minFinalCollateral],
     });
   }
   function handleMax() {
@@ -187,11 +250,22 @@ export function LeveragePanel() {
   const isBusy = enableOp.isPending || enableOpReceipt.isLoading || approve.isPending || approveReceipt.isLoading || leverage.isPending || leverageReceipt.isLoading;
   const hfDisplay = !preview ? "--" : preview.projectedHealthFactor === MAX_UINT256 ? "∞" : (Number(preview.projectedHealthFactor) / 1e18).toFixed(2);
 
+  // How much room the price has before liquidation, not the multiple itself,
+  // is what decides whether this position is comfortable to hold -- so the
+  // tone keys off that distance rather than off the leverage chosen.
+  const drop = preview?.dropToLiquidationPct ?? 100;
+  const liqTone =
+    drop < 15
+      ? { bg: "var(--color-error-bg)", text: "var(--color-error)" }
+      : drop < 30
+        ? { bg: "var(--color-warning-bg)", text: "var(--color-warning)" }
+        : { bg: "var(--color-bg-elevated)", text: "var(--color-text-muted)" };
+
   return (
     <div className="rounded-[var(--radius-card)] border border-[var(--color-border)] bg-[var(--color-bg-card)] p-4">
       <p className="text-xs uppercase tracking-wide text-[var(--color-text-faint)]">Leverage</p>
       <p className="mt-1 text-xs text-[var(--color-text-muted)]">
-        Supply, borrow, and swap into more wNVDAx -- one confirmation instead of separate supply/borrow/swap/supply steps.
+        Pick a multiple and the loop runs itself -- borrow, swap into more wNVDAx, supply, repeat -- in one confirmation.
       </p>
 
       {canSupplyOrBorrow === false && (
@@ -242,18 +316,31 @@ export function LeveragePanel() {
           />
 
           <div className="mt-4 flex items-center justify-between text-xs text-[var(--color-text-muted)]">
-            <span>Leverage intensity</span>
-            <span className="font-medium text-[var(--color-text)]">{intensity}% of available borrowing power</span>
+            <span>Target leverage</span>
+            <span className="font-[family-name:var(--font-display)] font-semibold text-[var(--color-text)]">
+              {effectiveTarget.toFixed(2)}x
+            </span>
           </div>
           <input
             type="range"
-            min={0}
-            max={100}
-            step={5}
-            value={intensity}
-            onChange={(e) => setIntensity(Number(e.target.value))}
+            min={1.05}
+            max={maxSelectable}
+            step={0.05}
+            value={effectiveTarget}
+            onChange={(e) => setTargetLeverage(Number(e.target.value))}
             className="mt-2 w-full accent-[var(--color-accent)]"
           />
+          <div className="mt-1 flex justify-between text-[10px] text-[var(--color-text-faint)]">
+            <span>1.05x</span>
+            <span>{maxSelectable.toFixed(2)}x max at {formatBps(maxLtv)} LTV</span>
+          </div>
+
+          {preview?.liquidityCapped && (
+            <p className="mt-3 rounded-[var(--radius-card)] bg-[var(--color-warning-bg)] px-3 py-2 text-xs text-[var(--color-warning)]">
+              Not enough USDG is liquid right now to reach {effectiveTarget.toFixed(2)}x -- the loop will stop early at roughly{" "}
+              {formatAmount(preview.projectedCollateral, WNVDAX_DECIMALS)} wNVDAx instead of reverting.
+            </p>
+          )}
 
           {preview && preview.borrowAmount > 0n && (
             <div className="mt-4 grid grid-cols-3 gap-2 rounded-[var(--radius-card)] bg-[var(--color-bg-elevated)] p-3 text-center text-xs">
@@ -278,6 +365,23 @@ export function LeveragePanel() {
                   <span className="text-[10px] font-normal text-[var(--color-text-muted)]">liq. at 1.00</span>
                 </p>
               </div>
+            </div>
+          )}
+
+          {preview && preview.borrowAmount > 0n && preview.liquidationPrice !== null && (
+            <div
+              className="mt-2 flex items-center justify-between rounded-[var(--radius-card)] px-3 py-2.5 text-xs"
+              style={{ background: liqTone.bg, color: liqTone.text }}
+            >
+              <span>Liquidation price</span>
+              <span className="font-[family-name:var(--font-display)] font-semibold">
+                ${formatPrice(preview.liquidationPrice)}
+                {preview.dropToLiquidationPct !== null && (
+                  <span className="ml-1.5 text-[10px] font-normal opacity-80">
+                    {preview.dropToLiquidationPct.toFixed(1)}% below today
+                  </span>
+                )}
+              </span>
             </div>
           )}
 

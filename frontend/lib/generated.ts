@@ -927,6 +927,13 @@ export const lenderVaultAbi = [
 export const leverageZapAbi = [
   {
     type: 'function',
+    inputs: [],
+    name: 'MAX_LEVERAGE',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
     inputs: [
       { name: 'market', internalType: 'contract Market', type: 'address' },
       {
@@ -939,6 +946,23 @@ export const leverageZapAbi = [
       { name: 'minCollateralOut', internalType: 'uint256', type: 'uint256' },
     ],
     name: 'leverage',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'market', internalType: 'contract Market', type: 'address' },
+      {
+        name: 'swapModule',
+        internalType: 'contract SwapModule',
+        type: 'address',
+      },
+      { name: 'initialCollateralIn', internalType: 'uint256', type: 'uint256' },
+      { name: 'targetLeverageWad', internalType: 'uint256', type: 'uint256' },
+      { name: 'minFinalCollateral', internalType: 'uint256', type: 'uint256' },
+    ],
+    name: 'multiply',
     outputs: [],
     stateMutability: 'nonpayable',
   },
@@ -974,6 +998,45 @@ export const leverageZapAbi = [
     ],
     name: 'Leveraged',
   },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      { name: 'user', internalType: 'address', type: 'address', indexed: true },
+      {
+        name: 'market',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      {
+        name: 'initialCollateralIn',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+      {
+        name: 'totalBorrowed',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+      {
+        name: 'finalCollateral',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+      {
+        name: 'loops',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+    ],
+    name: 'Multiplied',
+  },
+  { type: 'error', inputs: [], name: 'InvalidLeverage' },
   { type: 'error', inputs: [], name: 'MismatchedSwapModule' },
   { type: 'error', inputs: [], name: 'ReentrancyGuardReentrantCall' },
   {
@@ -3350,6 +3413,22 @@ export const useWatchLenderVaultWithdrawEvent =
   })
 
 /**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link leverageZapAbi}__
+ */
+export const useReadLeverageZap = /*#__PURE__*/ createUseReadContract({
+  abi: leverageZapAbi,
+})
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link leverageZapAbi}__ and `functionName` set to `"MAX_LEVERAGE"`
+ */
+export const useReadLeverageZapMaxLeverage =
+  /*#__PURE__*/ createUseReadContract({
+    abi: leverageZapAbi,
+    functionName: 'MAX_LEVERAGE',
+  })
+
+/**
  * Wraps __{@link useWriteContract}__ with `abi` set to __{@link leverageZapAbi}__
  */
 export const useWriteLeverageZap = /*#__PURE__*/ createUseWriteContract({
@@ -3361,6 +3440,13 @@ export const useWriteLeverageZap = /*#__PURE__*/ createUseWriteContract({
  */
 export const useWriteLeverageZapLeverage = /*#__PURE__*/ createUseWriteContract(
   { abi: leverageZapAbi, functionName: 'leverage' },
+)
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link leverageZapAbi}__ and `functionName` set to `"multiply"`
+ */
+export const useWriteLeverageZapMultiply = /*#__PURE__*/ createUseWriteContract(
+  { abi: leverageZapAbi, functionName: 'multiply' },
 )
 
 /**
@@ -3380,6 +3466,15 @@ export const useSimulateLeverageZapLeverage =
   })
 
 /**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link leverageZapAbi}__ and `functionName` set to `"multiply"`
+ */
+export const useSimulateLeverageZapMultiply =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: leverageZapAbi,
+    functionName: 'multiply',
+  })
+
+/**
  * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link leverageZapAbi}__
  */
 export const useWatchLeverageZapEvent =
@@ -3392,6 +3487,15 @@ export const useWatchLeverageZapLeveragedEvent =
   /*#__PURE__*/ createUseWatchContractEvent({
     abi: leverageZapAbi,
     eventName: 'Leveraged',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link leverageZapAbi}__ and `eventName` set to `"Multiplied"`
+ */
+export const useWatchLeverageZapMultipliedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: leverageZapAbi,
+    eventName: 'Multiplied',
   })
 
 /**

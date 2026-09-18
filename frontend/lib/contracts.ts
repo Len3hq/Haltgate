@@ -14,7 +14,7 @@ export const CONTRACTS = {
   multisig: "0x46Af2FD4bF206321Bcd24A58F4497B2681C7716F",
   timelock: "0x6e4591c9A44C28f29F570B19ab82781BA136305F",
   swapModule: "0x7b04e499a1D596D9B5ED3B80EAa2d17d0d10B7A2", // v2 Milestone 0 -- oracle-priced wNVDAx<->USDG swap, seeded with 40 wNVDAx, backs LeverageZap (Milestone 1)
-  leverageZap: "0xA214c1E9b4CC3b52525A75c6DD6fcD68c7D39763", // v2 Milestone 1 -- stateless, market-aware one-click leverage
+  leverageZap: "0xfCB4A5C042fE54e04A7F9027992f06F40F4F55be", // v2 Milestones 1-2 -- stateless, market-aware: leverage() single pass, multiply() loops to a target multiple
 } as const;
 
 export const USDG_DECIMALS = 6;
