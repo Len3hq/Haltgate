@@ -258,20 +258,25 @@ export function LeveragePanel() {
           {preview && preview.borrowAmount > 0n && (
             <div className="mt-4 grid grid-cols-3 gap-2 rounded-[var(--radius-card)] bg-[var(--color-bg-elevated)] p-3 text-center text-xs">
               <div>
-                <p className="text-[var(--color-text-faint)]">Borrows</p>
+                <p className="text-[var(--color-text-faint)]">You borrow</p>
                 <p className="mt-0.5 font-[family-name:var(--font-display)] font-semibold text-[var(--color-text)]">
-                  {formatAmount(preview.borrowAmount, USDG_DECIMALS)}
+                  {formatAmount(preview.borrowAmount, USDG_DECIMALS)}{" "}
+                  <span className="text-[10px] font-normal text-[var(--color-text-muted)]">USDG</span>
                 </p>
               </div>
               <div>
-                <p className="text-[var(--color-text-faint)]">Ends with</p>
+                <p className="text-[var(--color-text-faint)]">Collateral after</p>
                 <p className="mt-0.5 font-[family-name:var(--font-display)] font-semibold text-[var(--color-text)]">
-                  {formatAmount(preview.projectedCollateral, WNVDAX_DECIMALS)}
+                  {formatAmount(preview.projectedCollateral, WNVDAX_DECIMALS)}{" "}
+                  <span className="text-[10px] font-normal text-[var(--color-text-muted)]">wNVDAx</span>
                 </p>
               </div>
               <div>
                 <p className="text-[var(--color-text-faint)]">Health factor</p>
-                <p className="mt-0.5 font-[family-name:var(--font-display)] font-semibold text-[var(--color-text)]">{hfDisplay}</p>
+                <p className="mt-0.5 font-[family-name:var(--font-display)] font-semibold text-[var(--color-text)]">
+                  {hfDisplay}{" "}
+                  <span className="text-[10px] font-normal text-[var(--color-text-muted)]">liq. at 1.00</span>
+                </p>
               </div>
             </div>
           )}
