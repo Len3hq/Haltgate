@@ -28,6 +28,9 @@ const ERROR_MESSAGES: Record<string, string> = {
   SlippageTooHigh: "The swap output was lower than the minimum you allowed -- try again.",
   // HaltController.sol
   WrongState: "The market isn't in the right state for that action right now.",
+  NotSettleable: "This market isn't eligible for settlement -- it's either operating normally or already settling.",
+  HaltTooRecent: "The halt hasn't run long enough yet for settlement to be forced.",
+  InvalidSettlementDelay: "That settlement delay is outside the allowed range.",
   // MockPausableOracle.sol
   OraclePaused: "The price feed is paused.",
   OracleNotPaused: "The price feed isn't paused.",

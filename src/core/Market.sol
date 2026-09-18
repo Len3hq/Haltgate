@@ -408,7 +408,7 @@ contract Market is Ownable, ReentrancyGuard {
         if (elapsed == 0) return;
         lastAccrualTimestamp = block.timestamp;
         if (totalBorrows == 0) return;
-        if (haltController.state() == HaltController.MarketState.HALTED) return;
+        if (haltController.interestFrozen()) return;
 
         uint256 cash = debtToken.balanceOf(address(lenderVault));
         uint256 ratePerSecond = interestRateModel.getBorrowRatePerSecond(cash, totalBorrows);
@@ -515,7 +515,7 @@ contract Market is Ownable, ReentrancyGuard {
     /// never actually write.
     function _pendingAccrual() internal view returns (uint256 pendingIndex, uint256 pendingTotalBorrows, uint256 pendingTotalReserves) {
         uint256 elapsed = block.timestamp - lastAccrualTimestamp;
-        bool frozen = haltController.state() == HaltController.MarketState.HALTED;
+        bool frozen = haltController.interestFrozen();
         if (elapsed == 0 || totalBorrows == 0 || frozen) return (borrowIndex, totalBorrows, totalReserves);
         uint256 cash = debtToken.balanceOf(address(lenderVault));
         uint256 ratePerSecond = interestRateModel.getBorrowRatePerSecond(cash, totalBorrows);

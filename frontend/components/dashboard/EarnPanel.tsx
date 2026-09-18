@@ -15,6 +15,7 @@ import {
   useReadMarketReserveFactor,
   useReadInterestRateModelGetSupplyRatePerSecond,
   useReadHaltControllerCanLiquidate,
+  useReadHaltControllerIsSettling,
 } from "@/lib/generated";
 import { CONTRACTS, USDG_DECIMALS } from "@/lib/contracts";
 import { formatAmount, formatApr } from "@/lib/format";
@@ -58,6 +59,12 @@ export function EarnPanel() {
   // directly so the warning below names the right one instead of always
   // blaming borrowers.
   const { data: canLiquidate } = useReadHaltControllerCanLiquidate({
+    address: CONTRACTS.haltController,
+    query: { enabled: tab === "withdraw", refetchInterval: 6_000 },
+  });
+  // Settlement is a third case on top of those two: withdrawals are open
+  // again, but capped at a pro-rata slice rather than the whole liquid pot.
+  const { data: isSettling } = useReadHaltControllerIsSettling({
     address: CONTRACTS.haltController,
     query: { enabled: tab === "withdraw", refetchInterval: 6_000 },
   });
@@ -197,9 +204,15 @@ export function EarnPanel() {
         ))}
       </div>
 
-      {tab === "withdraw" && canLiquidate === false && (
+      {tab === "withdraw" && canLiquidate === false && isSettling !== true && (
         <p className="mt-3 rounded-[var(--radius-card)] bg-[var(--color-warning-bg)] px-3 py-2 text-xs text-[var(--color-warning)]">
           Withdrawals are paused while the market is halted -- see the status banner above. Deposits still work as normal.
+        </p>
+      )}
+      {tab === "withdraw" && isSettling === true && (
+        <p className="mt-3 rounded-[var(--radius-card)] bg-[var(--color-warning-bg)] px-3 py-2 text-xs text-[var(--color-warning)]">
+          Settlement is open: you can withdraw your proportional share of whatever USDG is currently liquid. The rest stays claimable as
+          borrowers repay -- nobody can drain the pool ahead of you.
         </p>
       )}
       {insufficientLiquidity && canLiquidate !== false && (

@@ -8,6 +8,7 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {Market} from "./Market.sol";
+import {HaltController} from "./HaltController.sol";
 
 /// @notice ERC-4626 vault: depositors put in USDG, get yield-bearing shares
 /// out. This is where lenders' actual cash lives -- Market never custodies
@@ -102,11 +103,37 @@ contract LenderVault is ERC4626, Ownable, ReentrancyGuard {
     /// same reasoning Market.supply()/repay() already rely on for actions
     /// that can't hurt anyone but the caller.
     function maxRedeem(address owner_) public view override returns (uint256) {
-        if (!market.haltController().canLiquidate()) return 0;
+        HaltController controller = market.haltController();
+        uint256 ownerMax = super.maxRedeem(owner_); // OZ: the owner's full share balance
         uint256 cash = IERC20(asset()).balanceOf(address(this));
-        uint256 cashInShares = convertToShares(cash);
-        uint256 ownerMax = super.maxRedeem(owner_);
-        return ownerMax > cashInShares ? cashInShares : ownerMax;
+
+        if (controller.canLiquidate()) {
+            uint256 cashInShares = convertToShares(cash);
+            return ownerMax > cashInShares ? cashInShares : ownerMax;
+        }
+
+        // Settlement: the halt has run past its maximum duration and nobody
+        // can say when, or whether, it resolves. Keeping redemptions frozen
+        // indefinitely would strand lenders in the name of protecting them,
+        // so they open back up -- but capped at each holder's PRO-RATA share
+        // of the cash on hand, never first-come-first-served.
+        //
+        // That cap is what keeps this from reintroducing the bank run the
+        // freeze exists to prevent. Everyone redeems at the same share price
+        // and draws exactly their proportion of cash, which leaves the share
+        // price arithmetically unchanged (cash and supply fall in step), so
+        // being early confers no better rate -- only earlier access to a
+        // slice that was already yours. Whatever the loans are ultimately
+        // worth is then borne proportionally by whoever still holds shares,
+        // rather than dumped entirely on whoever reacted slowest.
+        if (controller.isSettling()) {
+            uint256 supply = totalSupply();
+            if (supply == 0) return 0;
+            uint256 entitlementShares = convertToShares((cash * ownerMax) / supply);
+            return ownerMax > entitlementShares ? entitlementShares : ownerMax;
+        }
+
+        return 0;
     }
 
     /// @dev Nudges Market's interest bookkeeping current on every deposit,

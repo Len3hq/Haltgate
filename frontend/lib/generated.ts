@@ -22,6 +22,20 @@ export const haltControllerAbi = [
   {
     type: 'function',
     inputs: [],
+    name: 'MAX_SETTLEMENT_DELAY',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'MIN_SETTLEMENT_DELAY',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
     name: 'beginHalting',
     outputs: [],
     stateMutability: 'nonpayable',
@@ -64,7 +78,35 @@ export const haltControllerAbi = [
   {
     type: 'function',
     inputs: [],
+    name: 'forceSettle',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'haltStartedAt',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'interestFrozen',
+    outputs: [{ name: '', internalType: 'bool', type: 'bool' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
     name: 'isHalted',
+    outputs: [{ name: '', internalType: 'bool', type: 'bool' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'isSettling',
     outputs: [{ name: '', internalType: 'bool', type: 'bool' }],
     stateMutability: 'view',
   },
@@ -104,6 +146,27 @@ export const haltControllerAbi = [
     name: 'setKeeper',
     outputs: [],
     stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'newDuration', internalType: 'uint256', type: 'uint256' }],
+    name: 'setSettlementDelay',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'settlementAvailableAt',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'settlementDelay',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
   },
   {
     type: 'function',
@@ -189,6 +252,45 @@ export const haltControllerAbi = [
     type: 'event',
     anonymous: false,
     inputs: [
+      { name: 'by', internalType: 'address', type: 'address', indexed: true },
+      {
+        name: 'haltStartedAt',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+      {
+        name: 'settledAt',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+    ],
+    name: 'Settled',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'previous',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+      {
+        name: 'next',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+    ],
+    name: 'SettlementDelayUpdated',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
       {
         name: 'previous',
         internalType: 'enum HaltController.MarketState',
@@ -204,7 +306,16 @@ export const haltControllerAbi = [
     ],
     name: 'StateChanged',
   },
+  {
+    type: 'error',
+    inputs: [
+      { name: 'settleableAt', internalType: 'uint256', type: 'uint256' },
+    ],
+    name: 'HaltTooRecent',
+  },
+  { type: 'error', inputs: [], name: 'InvalidSettlementDelay' },
   { type: 'error', inputs: [], name: 'NotAuthorized' },
+  { type: 'error', inputs: [], name: 'NotSettleable' },
   {
     type: 'error',
     inputs: [{ name: 'owner', internalType: 'address', type: 'address' }],
@@ -2542,6 +2653,24 @@ export const useReadHaltController = /*#__PURE__*/ createUseReadContract({
 })
 
 /**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link haltControllerAbi}__ and `functionName` set to `"MAX_SETTLEMENT_DELAY"`
+ */
+export const useReadHaltControllerMaxSettlementDelay =
+  /*#__PURE__*/ createUseReadContract({
+    abi: haltControllerAbi,
+    functionName: 'MAX_SETTLEMENT_DELAY',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link haltControllerAbi}__ and `functionName` set to `"MIN_SETTLEMENT_DELAY"`
+ */
+export const useReadHaltControllerMinSettlementDelay =
+  /*#__PURE__*/ createUseReadContract({
+    abi: haltControllerAbi,
+    functionName: 'MIN_SETTLEMENT_DELAY',
+  })
+
+/**
  * Wraps __{@link useReadContract}__ with `abi` set to __{@link haltControllerAbi}__ and `functionName` set to `"canLiquidate"`
  */
 export const useReadHaltControllerCanLiquidate =
@@ -2569,12 +2698,39 @@ export const useReadHaltControllerCanSupplyOrBorrow =
   })
 
 /**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link haltControllerAbi}__ and `functionName` set to `"haltStartedAt"`
+ */
+export const useReadHaltControllerHaltStartedAt =
+  /*#__PURE__*/ createUseReadContract({
+    abi: haltControllerAbi,
+    functionName: 'haltStartedAt',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link haltControllerAbi}__ and `functionName` set to `"interestFrozen"`
+ */
+export const useReadHaltControllerInterestFrozen =
+  /*#__PURE__*/ createUseReadContract({
+    abi: haltControllerAbi,
+    functionName: 'interestFrozen',
+  })
+
+/**
  * Wraps __{@link useReadContract}__ with `abi` set to __{@link haltControllerAbi}__ and `functionName` set to `"isHalted"`
  */
 export const useReadHaltControllerIsHalted =
   /*#__PURE__*/ createUseReadContract({
     abi: haltControllerAbi,
     functionName: 'isHalted',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link haltControllerAbi}__ and `functionName` set to `"isSettling"`
+ */
+export const useReadHaltControllerIsSettling =
+  /*#__PURE__*/ createUseReadContract({
+    abi: haltControllerAbi,
+    functionName: 'isSettling',
   })
 
 /**
@@ -2600,6 +2756,24 @@ export const useReadHaltControllerOwner = /*#__PURE__*/ createUseReadContract({
   abi: haltControllerAbi,
   functionName: 'owner',
 })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link haltControllerAbi}__ and `functionName` set to `"settlementAvailableAt"`
+ */
+export const useReadHaltControllerSettlementAvailableAt =
+  /*#__PURE__*/ createUseReadContract({
+    abi: haltControllerAbi,
+    functionName: 'settlementAvailableAt',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link haltControllerAbi}__ and `functionName` set to `"settlementDelay"`
+ */
+export const useReadHaltControllerSettlementDelay =
+  /*#__PURE__*/ createUseReadContract({
+    abi: haltControllerAbi,
+    functionName: 'settlementDelay',
+  })
 
 /**
  * Wraps __{@link useReadContract}__ with `abi` set to __{@link haltControllerAbi}__ and `functionName` set to `"state"`
@@ -2644,6 +2818,15 @@ export const useWriteHaltControllerForceResume =
   })
 
 /**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link haltControllerAbi}__ and `functionName` set to `"forceSettle"`
+ */
+export const useWriteHaltControllerForceSettle =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: haltControllerAbi,
+    functionName: 'forceSettle',
+  })
+
+/**
  * Wraps __{@link useWriteContract}__ with `abi` set to __{@link haltControllerAbi}__ and `functionName` set to `"renounceOwnership"`
  */
 export const useWriteHaltControllerRenounceOwnership =
@@ -2659,6 +2842,15 @@ export const useWriteHaltControllerSetKeeper =
   /*#__PURE__*/ createUseWriteContract({
     abi: haltControllerAbi,
     functionName: 'setKeeper',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link haltControllerAbi}__ and `functionName` set to `"setSettlementDelay"`
+ */
+export const useWriteHaltControllerSetSettlementDelay =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: haltControllerAbi,
+    functionName: 'setSettlementDelay',
   })
 
 /**
@@ -2712,6 +2904,15 @@ export const useSimulateHaltControllerForceResume =
   })
 
 /**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link haltControllerAbi}__ and `functionName` set to `"forceSettle"`
+ */
+export const useSimulateHaltControllerForceSettle =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: haltControllerAbi,
+    functionName: 'forceSettle',
+  })
+
+/**
  * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link haltControllerAbi}__ and `functionName` set to `"renounceOwnership"`
  */
 export const useSimulateHaltControllerRenounceOwnership =
@@ -2727,6 +2928,15 @@ export const useSimulateHaltControllerSetKeeper =
   /*#__PURE__*/ createUseSimulateContract({
     abi: haltControllerAbi,
     functionName: 'setKeeper',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link haltControllerAbi}__ and `functionName` set to `"setSettlementDelay"`
+ */
+export const useSimulateHaltControllerSetSettlementDelay =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: haltControllerAbi,
+    functionName: 'setSettlementDelay',
   })
 
 /**
@@ -2778,6 +2988,24 @@ export const useWatchHaltControllerOwnershipTransferredEvent =
   /*#__PURE__*/ createUseWatchContractEvent({
     abi: haltControllerAbi,
     eventName: 'OwnershipTransferred',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link haltControllerAbi}__ and `eventName` set to `"Settled"`
+ */
+export const useWatchHaltControllerSettledEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: haltControllerAbi,
+    eventName: 'Settled',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link haltControllerAbi}__ and `eventName` set to `"SettlementDelayUpdated"`
+ */
+export const useWatchHaltControllerSettlementDelayUpdatedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: haltControllerAbi,
+    eventName: 'SettlementDelayUpdated',
   })
 
 /**

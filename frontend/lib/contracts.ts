@@ -7,13 +7,13 @@ export const CONTRACTS = {
   wNVDAx: "0xe37088E75e24AbE5DE1ac6d188803405D9DEbb42",
   wNVDAxFaucet: "0xBCFDa358dfdA7d8FFB53e2294846809c5DB8b57D", // self-serve, permissionless, one claim per address
   usdg: "0xF0863D7A29a55d0c4263c11bFac754312ff078DF", // real testnet USDG, 6 decimals
-  haltController: "0x97729Ad94F5c932C4851D2161eA19877Ff326Ac0",
-  lenderVault: "0x618F436c5a641AfE60Ddc6b7a5bee10019B716d5", // ERC-4626: USDG in, hgUSDG shares out
+  haltController: "0x4C4AC6fd104Eb8CE9887a0e7Da757f86d08EE807", // + terminal-halt settlement: SETTLING state, 7d settlementDelay, permissionless forceSettle()
+  lenderVault: "0x0051f29d5E2BFC85542266a3B9894Da2db2aDf4d", // ERC-4626: USDG in, hgUSDG shares out; pro-rata redemption during SETTLING
   interestRateModel: "0x5F644BDF606cdb770c76bb01d6c3B83EA9F21845",
-  market: "0xBE4e22F15375764A001F57533AB7DC179513111e", // v2 Milestone 1 -- added setOperator/supplyFor/borrowFor so LeverageZap can credit the real user, not itself
+  market: "0x3ff6a0071655B1179C64f7114b175B141af91978", // setOperator/supplyFor/borrowFor for LeverageZap; interest freeze now covers SETTLING too
   multisig: "0x46Af2FD4bF206321Bcd24A58F4497B2681C7716F",
   timelock: "0x6e4591c9A44C28f29F570B19ab82781BA136305F",
-  swapModule: "0x7b04e499a1D596D9B5ED3B80EAa2d17d0d10B7A2", // v2 Milestone 0 -- oracle-priced wNVDAx<->USDG swap, seeded with 40 wNVDAx, backs LeverageZap (Milestone 1)
+  swapModule: "0x3797E011686e756EFfb8619B5faDCE261BA59680", // oracle-priced wNVDAx<->USDG swap, seeded with 40 wNVDAx, backs LeverageZap
   leverageZap: "0xfCB4A5C042fE54e04A7F9027992f06F40F4F55be", // v2 Milestones 1-2 -- stateless, market-aware: leverage() single pass, multiply() loops to a target multiple
 } as const;
 
