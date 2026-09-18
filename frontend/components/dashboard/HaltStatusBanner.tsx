@@ -1,7 +1,17 @@
 "use client";
 
-import { useReadHaltControllerState, useReadHaltControllerSettlementAvailableAt } from "@/lib/generated";
+import { useEffect } from "react";
+import { useAccount, useWaitForTransactionReceipt } from "wagmi";
+import { useQueryClient } from "@tanstack/react-query";
+import {
+  useReadHaltControllerState,
+  useReadHaltControllerSettlementAvailableAt,
+  useSimulateHaltControllerForceSettle,
+  useWriteHaltControllerForceSettle,
+} from "@/lib/generated";
 import { CONTRACTS } from "@/lib/contracts";
+import { getErrorMessage } from "@/lib/errors";
+import { TxStatus } from "@/components/dashboard/TxStatus";
 
 // Mirrors HaltController.MarketState exactly (src/core/HaltController.sol).
 const STATE_LABEL = ["OPEN", "HALTING", "HALTED", "RESUMING", "SETTLING"] as const;
@@ -40,20 +50,23 @@ const STATE_CONFIG = {
   },
 } as const;
 
-/// Turns the settlement deadline into something concrete. A guarantee that
-/// capital can't be locked up forever is only reassuring if you can see when
-/// it kicks in.
-function settlementCountdown(availableAt: bigint | undefined): string | null {
+/// A guarantee that capital can't be locked up forever only reassures if you
+/// can see when it kicks in -- and act on it once it does.
+function settlementStatus(availableAt: bigint | undefined): { message: string; unlocked: boolean } | null {
   if (availableAt === undefined || availableAt === 0n) return null;
   const secondsLeft = Number(availableAt) - Math.floor(Date.now() / 1000);
-  if (secondsLeft <= 0) return "Settlement can be triggered now by anyone.";
-
+  if (secondsLeft <= 0) {
+    return { message: "This halt has run past its limit. Anyone can now open settlement so lenders can withdraw.", unlocked: true };
+  }
   const hours = Math.ceil(secondsLeft / 3600);
-  if (hours < 48) return `Lender settlement unlocks in ~${hours}h if this doesn't resolve.`;
-  return `Lender settlement unlocks in ~${Math.ceil(hours / 24)}d if this doesn't resolve.`;
+  const eta = hours < 48 ? `~${hours}h` : `~${Math.ceil(hours / 24)}d`;
+  return { message: `Lender settlement unlocks in ${eta} if this doesn't resolve.`, unlocked: false };
 }
 
 export function HaltStatusBanner() {
+  const { address } = useAccount();
+  const queryClient = useQueryClient();
+
   const { data: state, isLoading } = useReadHaltControllerState({
     address: CONTRACTS.haltController,
     query: { refetchInterval: 6_000 },
@@ -62,6 +75,27 @@ export function HaltStatusBanner() {
     address: CONTRACTS.haltController,
     query: { refetchInterval: 30_000 },
   });
+
+  const label = state === undefined ? "OPEN" : (STATE_LABEL[state] ?? "OPEN");
+  // Only runs while the market is restricted but not yet settled: once it's
+  // SETTLING the deadline has passed, and when OPEN no clock is running.
+  const settlement =
+    label === "HALTING" || label === "HALTED" || label === "RESUMING" ? settlementStatus(settlementAvailableAt) : null;
+  const canSettle = settlement?.unlocked === true;
+
+  const simulate = useSimulateHaltControllerForceSettle({
+    address: CONTRACTS.haltController,
+    query: { enabled: !!address && canSettle },
+  });
+  const settle = useWriteHaltControllerForceSettle();
+  const settleReceipt = useWaitForTransactionReceipt({ hash: settle.data });
+
+  useEffect(() => {
+    if (settleReceipt.isSuccess) queryClient.invalidateQueries();
+  }, [settleReceipt.isSuccess, queryClient]);
+
+  const simulationBlocked = !!address && canSettle && !simulate.isPending && !!simulate.error;
+  const isBusy = settle.isPending || settleReceipt.isLoading;
 
   if (isLoading || state === undefined) {
     return (
@@ -72,23 +106,57 @@ export function HaltStatusBanner() {
     );
   }
 
-  const label = STATE_LABEL[state] ?? "OPEN";
   const config = STATE_CONFIG[label];
-  // Only meaningful while the market is restricted but not yet settled --
-  // once it's SETTLING the deadline has already passed, and when it's OPEN
-  // there's no clock running at all.
-  const countdown =
-    label === "HALTING" || label === "HALTED" || label === "RESUMING" ? settlementCountdown(settlementAvailableAt) : null;
 
   return (
     <div className={`flex items-start gap-3 rounded-[var(--radius-card)] border border-[var(--color-border)] ${config.bg} px-4 py-3`}>
       <span className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${config.dot}`} />
-      <div>
+      <div className="min-w-0 flex-1">
         <div className="flex flex-col sm:flex-row sm:items-center sm:gap-2">
           <span className={`text-sm font-semibold ${config.text}`}>{label}</span>
           <span className="text-sm text-[var(--color-text-muted)]">{config.message}</span>
         </div>
-        {countdown && <p className="mt-1 text-xs text-[var(--color-text-faint)]">{countdown}</p>}
+
+        {settlement && (
+          <div className="mt-2">
+            <p className="text-xs text-[var(--color-text-faint)]">{settlement.message}</p>
+
+            {canSettle && (
+              <div className="mt-2">
+                {address ? (
+                  <>
+                    <button
+                      onClick={() => settle.writeContract({ address: CONTRACTS.haltController })}
+                      disabled={isBusy || simulationBlocked}
+                      className="rounded-[var(--radius-pill)] bg-[var(--color-accent)] px-4 py-1.5 text-xs font-semibold text-[var(--color-accent-fg)] disabled:opacity-50"
+                    >
+                      {isBusy ? "Confirming..." : "Open settlement"}
+                    </button>
+                    <p className="mt-1.5 text-[11px] text-[var(--color-text-faint)]">
+                      Permissionless -- any wallet can do this, and it unlocks withdrawals for every lender at once, not just you.
+                      Borrowing and liquidation stay paused.
+                    </p>
+                    {simulationBlocked && (
+                      <p className="mt-2 text-[11px] text-[var(--color-warning)]">{getErrorMessage(simulate.error)}</p>
+                    )}
+                    <TxStatus
+                      hash={settle.data}
+                      isPending={settle.isPending}
+                      isConfirming={settleReceipt.isLoading}
+                      isSuccess={settleReceipt.isSuccess}
+                      error={settle.error}
+                      successLabel="Settlement open -- lenders can now withdraw their pro-rata share."
+                    />
+                  </>
+                ) : (
+                  <p className="text-[11px] text-[var(--color-text-faint)]">
+                    Connect a wallet to open settlement. Any wallet can -- it unlocks withdrawals for every lender at once.
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
