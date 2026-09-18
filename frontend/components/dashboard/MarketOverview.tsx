@@ -1,7 +1,5 @@
 "use client";
 
-import { useReadContract } from "wagmi";
-import { erc20Abi } from "viem";
 import {
   useReadIPausableOracleLatestPrice,
   useReadMarketTotalCollateral,
@@ -9,11 +7,9 @@ import {
   useReadMarketMaxLtv,
   useReadMarketLiquidationThreshold,
   useReadMarketReserveFactor,
-  useReadInterestRateModelGetBorrowRatePerSecond,
-  useReadInterestRateModelGetSupplyRatePerSecond,
 } from "@/lib/generated";
 import { CONTRACTS, USDG_DECIMALS, WNVDAX_DECIMALS } from "@/lib/contracts";
-import { formatAmount, formatApr, formatBps, formatPrice } from "@/lib/format";
+import { formatAmount, formatBps, formatPrice } from "@/lib/format";
 
 function StatCard({ label, value, sublabel }: { label: string; value: string; sublabel?: string }) {
   return (
@@ -32,6 +28,13 @@ function toWad(amount: bigint, decimals: number): bigint {
   return decimals === 18 ? amount : amount * 10n ** BigInt(18 - decimals);
 }
 
+/// The four numbers that describe "what is this market, right now" at a
+/// glance. Everything rate-related (Supply/Borrow APR) moved to
+/// RateCurveChart, where utilization actually explains *why* the rate is
+/// what it is instead of sitting beside it as an unrelated card -- and the
+/// three fixed risk parameters (LTV, liquidation threshold, reserve factor)
+/// moved to a single compact strip, since they're configuration to glance
+/// at, not headline figures worth the same visual weight as live totals.
 export function MarketOverview() {
   const { data: priceData } = useReadIPausableOracleLatestPrice({
     address: CONTRACTS.oracle,
@@ -49,50 +52,40 @@ export function MarketOverview() {
   const { data: liquidationThreshold } = useReadMarketLiquidationThreshold({ address: CONTRACTS.market });
   const { data: reserveFactor } = useReadMarketReserveFactor({ address: CONTRACTS.market });
 
-  // Money-market utilization (cash vs. borrows) -- what the interest rate
-  // curve actually responds to. Distinct from the loan-to-value style
-  // "debt vs. collateral value" figure computed below.
-  const { data: vaultCash } = useReadContract({
-    address: CONTRACTS.usdg,
-    abi: erc20Abi,
-    functionName: "balanceOf",
-    args: [CONTRACTS.lenderVault],
-    query: { refetchInterval: 10_000 },
-  });
-
-  const { data: borrowRate } = useReadInterestRateModelGetBorrowRatePerSecond({
-    address: CONTRACTS.interestRateModel,
-    args: vaultCash !== undefined && totalBorrows !== undefined ? [vaultCash, totalBorrows] : undefined,
-    query: { enabled: vaultCash !== undefined && totalBorrows !== undefined, refetchInterval: 10_000 },
-  });
-  const { data: supplyRate } = useReadInterestRateModelGetSupplyRatePerSecond({
-    address: CONTRACTS.interestRateModel,
-    args:
-      vaultCash !== undefined && totalBorrows !== undefined && reserveFactor !== undefined
-        ? [vaultCash, totalBorrows, reserveFactor]
-        : undefined,
-    query: { enabled: vaultCash !== undefined && totalBorrows !== undefined && reserveFactor !== undefined, refetchInterval: 10_000 },
-  });
-
   const price = priceData?.[0];
 
-  let collateralUtilization: bigint | undefined;
+  // Debt vs. collateral VALUE (LTV-style) -- distinct from pool utilization
+  // (cash vs. borrows), which drives the rate curve and lives on that chart
+  // instead. Two different "how full is this" numbers were previously both
+  // labeled loosely as "utilization" on this same card, which is exactly
+  // the kind of ambiguity this redesign is meant to remove.
+  let debtToCollateral: bigint | undefined;
   if (price !== undefined && totalCollateral !== undefined && totalBorrows !== undefined) {
     const collateralValueWad = (toWad(totalCollateral, WNVDAX_DECIMALS) * price) / 10n ** 18n;
     const debtWad = toWad(totalBorrows, USDG_DECIMALS);
-    collateralUtilization = collateralValueWad === 0n ? 0n : (debtWad * 10n ** 18n) / collateralValueWad;
+    debtToCollateral = collateralValueWad === 0n ? 0n : (debtWad * 10n ** 18n) / collateralValueWad;
   }
 
   return (
-    <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-      <StatCard label="wNVDAx Price" value={`$${formatPrice(price)}`} sublabel="USDG" />
-      <StatCard label="Total Supplied" value={formatAmount(totalCollateral, WNVDAX_DECIMALS)} sublabel="wNVDAx collateral" />
-      <StatCard label="Total Borrowed" value={formatAmount(totalBorrows, USDG_DECIMALS)} sublabel="USDG, interest-inclusive" />
-      <StatCard label="Debt / Collateral" value={formatBps(collateralUtilization)} sublabel={`Max LTV ${formatBps(maxLtv)}`} />
-      <StatCard label="Supply APR" value={formatApr(supplyRate)} sublabel="Earned by LenderVault deposits" />
-      <StatCard label="Borrow APR" value={formatApr(borrowRate)} sublabel="Paid by borrowers" />
-      <StatCard label="Liq. Threshold" value={formatBps(liquidationThreshold)} sublabel="Position closes above this" />
-      <StatCard label="Reserve Factor" value={formatBps(reserveFactor)} sublabel="Protocol's cut of interest" />
+    <div>
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <StatCard label="wNVDAx Price" value={`$${formatPrice(price)}`} sublabel="USDG" />
+        <StatCard label="Total Supplied" value={formatAmount(totalCollateral, WNVDAX_DECIMALS)} sublabel="wNVDAx collateral" />
+        <StatCard label="Total Borrowed" value={formatAmount(totalBorrows, USDG_DECIMALS)} sublabel="USDG, interest-inclusive" />
+        <StatCard label="Debt / Collateral" value={formatBps(debtToCollateral)} sublabel={`Max LTV ${formatBps(maxLtv)}`} />
+      </div>
+
+      <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-1.5 rounded-[var(--radius-card)] border border-[var(--color-border-subtle)] px-4 py-2.5 text-xs text-[var(--color-text-muted)]">
+        <span>
+          Max LTV <span className="font-medium text-[var(--color-text)]">{formatBps(maxLtv)}</span>
+        </span>
+        <span>
+          Liq. threshold <span className="font-medium text-[var(--color-text)]">{formatBps(liquidationThreshold)}</span>
+        </span>
+        <span>
+          Reserve factor <span className="font-medium text-[var(--color-text)]">{formatBps(reserveFactor)}</span>
+        </span>
+      </div>
     </div>
   );
 }
