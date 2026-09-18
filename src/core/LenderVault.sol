@@ -10,19 +10,9 @@ import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol
 import {Market} from "./Market.sol";
 import {HaltController} from "./HaltController.sol";
 
-/// @notice ERC-4626 vault: depositors put in USDG, get yield-bearing shares
-/// out. This is where lenders' actual cash lives -- Market never custodies
-/// debt-token funds itself, only risk logic (collateral, LTV, liquidations).
-/// Share price is the ONLY place yield is represented: there's no separate
-/// "supply rate" tracked in storage that could drift out of sync with it --
-/// totalAssets() reads Market's live interest accrual directly, so the
-/// exchange rate is always the ground truth.
-///
-/// Inflation-attack protection: relies on OpenZeppelin ERC4626's built-in
-/// virtual shares/assets (`+1` / `+10**decimalsOffset()` in its conversion
-/// math), confirmed in its own docs to make the classic donation attack
-/// non-profitable even at the default zero offset -- not something this
-/// contract needs to separately defend against.
+/// @notice ERC-4626 vault holding lenders' USDG; Market holds only risk logic.
+/// Yield lives solely in share price -- no stored supply rate that could drift.
+/// Inflation attacks are covered by OZ ERC4626's built-in virtual shares.
 contract LenderVault is ERC4626, Ownable, ReentrancyGuard {
     using SafeERC20 for IERC20;
 
@@ -45,63 +35,35 @@ contract LenderVault is ERC4626, Ownable, ReentrancyGuard {
         if (asset_ == address(0) || owner_ == address(0)) revert ZeroAddress();
     }
 
-    /// @notice One-time wiring. Market's constructor needs this vault's
-    /// address to pull/return cash, so the vault necessarily deploys first
-    /// with market unset -- locked after the first call so it can never be
-    /// silently repointed at a different risk contract later.
+    /// @notice One-time wiring -- the vault must deploy before Market, and is
+    /// locked afterwards so it can't be repointed at another risk contract.
     function setMarket(address market_) external onlyOwner {
         if (address(market) != address(0)) revert MarketAlreadySet();
         if (market_ == address(0)) revert ZeroAddress();
         market = Market(market_);
     }
 
-    /// @notice Cash Market sends to a borrower. Only Market can call this --
-    /// it's the only contract that has already checked LTV, halt state, and
-    /// available liquidity before asking for funds to move.
+    /// @notice Market-only: it's the one contract that has already checked LTV,
+    /// halt state and liquidity before asking for funds to move.
     function borrowCash(address to, uint256 amount) external onlyMarket nonReentrant {
         IERC20(asset()).safeTransfer(to, amount);
     }
 
-    /// @notice Value owed to LP shareholders: cash on hand, plus everything
-    /// currently out on loan (interest-inclusive, computed live via
-    /// Market's pending-accrual view so this is accurate even between
-    /// Market's own accrual transactions), minus reserves -- reserves are
-    /// the protocol's cut of interest, not depositors'.
-    ///
-    /// Deliberately computed as ONE left-to-right expression -- cash and
-    /// totalBorrows summed first, reserves subtracted from that combined
-    /// total last -- not as cash + (totalBorrows - totalReserves). The
-    /// combined sum can never fall below totalReserves (reserves are only
-    /// ever funded out of interest already folded into totalBorrows, and a
-    /// repayment moves value from totalBorrows into cash without changing
-    /// their sum), but totalBorrows alone can: a full repayment can
-    /// legitimately drop it to zero while totalReserves is still positive.
-    /// Subtracting in that isolated order underflowed and reverted every
-    /// deposit/withdraw call permanently in exactly that scenario --
-    /// confirmed by reproduction before this fix.
+    /// @notice Cash + outstanding loans (interest-inclusive) - reserves.
+    /// @dev Summed left-to-right on purpose: totalBorrows alone can fall below
+    /// totalReserves after a full repayment, and subtracting them in isolation
+    /// underflowed and permanently bricked every deposit/withdraw.
     function totalAssets() public view override returns (uint256) {
         (uint256 pendingTotalBorrows, uint256 pendingTotalReserves) = market.pendingBorrowsAndReserves();
         return IERC20(asset()).balanceOf(address(this)) + pendingTotalBorrows - pendingTotalReserves;
     }
 
-    /// @notice Capped at actual liquid cash -- part of totalAssets() is
-    /// currently lent out to borrowers and can't be withdrawn until repaid.
-    /// Per OZ's own guidance, overriding maxRedeem alone is sufficient:
-    /// maxWithdraw's default implementation is previewRedeem(maxRedeem(...)),
-    /// which picks up this override automatically through virtual dispatch.
-    ///
-    /// Also zero whenever the market isn't fully OPEN -- reuses
-    /// HaltController.canLiquidate()'s exact condition rather than inventing
-    /// a parallel one, since liquidation is literally the mechanism that
-    /// resolves the same uncertainty a halt creates. Found in a live audit:
-    /// every borrower-side action (borrow, liquidate, new interest) was
-    /// correctly frozen during a halt, but withdrawals here were not --
-    /// letting LPs exit at a stale, frozen share price ahead of any bad debt
-    /// a corporate action might reveal on resume, while depositors slower to
-    /// react absorbed a disproportionate share of whatever was left. Deposits
-    /// stay unrestricted throughout: adding liquidity only ever helps, the
-    /// same reasoning Market.supply()/repay() already rely on for actions
-    /// that can't hurt anyone but the caller.
+    /// @notice OPEN: capped at liquid cash. Halted: zero -- otherwise LPs could
+    /// exit at a stale share price ahead of bad debt a corporate action may
+    /// reveal. SETTLING: capped pro-rata (see below). Deposits stay open
+    /// throughout; adding liquidity can't hurt anyone.
+    /// @dev Overriding maxRedeem alone is enough -- maxWithdraw defaults to
+    /// previewRedeem(maxRedeem(...)) and picks this up via virtual dispatch.
     function maxRedeem(address owner_) public view override returns (uint256) {
         HaltController controller = market.haltController();
         uint256 ownerMax = super.maxRedeem(owner_); // OZ: the owner's full share balance
@@ -112,20 +74,10 @@ contract LenderVault is ERC4626, Ownable, ReentrancyGuard {
             return ownerMax > cashInShares ? cashInShares : ownerMax;
         }
 
-        // Settlement: the halt has run past its maximum duration and nobody
-        // can say when, or whether, it resolves. Keeping redemptions frozen
-        // indefinitely would strand lenders in the name of protecting them,
-        // so they open back up -- but capped at each holder's PRO-RATA share
-        // of the cash on hand, never first-come-first-served.
-        //
-        // That cap is what keeps this from reintroducing the bank run the
-        // freeze exists to prevent. Everyone redeems at the same share price
-        // and draws exactly their proportion of cash, which leaves the share
-        // price arithmetically unchanged (cash and supply fall in step), so
-        // being early confers no better rate -- only earlier access to a
-        // slice that was already yours. Whatever the loans are ultimately
-        // worth is then borne proportionally by whoever still holds shares,
-        // rather than dumped entirely on whoever reacted slowest.
+        // Pro-rata, never first-come-first-served: everyone draws the same
+        // proportion at the same price, so cash and supply fall in step and
+        // the share price is untouched. Being early buys no better rate, which
+        // is what stops settlement reintroducing the run the freeze prevents.
         if (controller.isSettling()) {
             uint256 supply = totalSupply();
             if (supply == 0) return 0;
@@ -136,10 +88,8 @@ contract LenderVault is ERC4626, Ownable, ReentrancyGuard {
         return 0;
     }
 
-    /// @dev Nudges Market's interest bookkeeping current on every deposit,
-    /// on top of the always-accurate pending-accrual math totalAssets()
-    /// already applies regardless -- keeps Market's own on-chain state
-    /// (totalBorrows, reserves) from drifting stale for other readers.
+    /// @dev totalAssets() is already accurate without this; accruing here just
+    /// keeps Market's stored state fresh for other readers.
     function _deposit(address caller, address receiver, uint256 assets, uint256 shares) internal override nonReentrant {
         market.accrueInterest();
         super._deposit(caller, receiver, assets, shares);

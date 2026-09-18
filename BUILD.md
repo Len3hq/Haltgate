@@ -72,9 +72,23 @@ This is an X Layer-specific gap: the asset exists here, the trading venue exists
 - **No real xStocks contract (raw or wrapped) is confirmed to exist on X Layer testnet.** Corporate Action Guard's own testnet asset is an explicit `TESTNET FIXTURE`, not a real token — this was independently verified, correcting an earlier inaccurate AI-search-summary claim.
 - USDG's real, verified **mainnet** contract address on X Layer: `0x4ae46a509f6b1d9056937ba4500cb143933d2dc8` — [Paxos usdg-contract repo](https://github.com/paxosglobal/usdg-contract).
 
-### 3.4 One remaining open item — not blocking, worth 15 minutes before Day 1
+### 3.4 Oracle availability and pause detection — RESOLVED 2026-09-18
 
-Whether a **live Chainlink price feed contract for wNVDAx is actually deployed and queryable on X Layer specifically** (mainnet or testnet) is not yet confirmed — only that Chainlink is xStocks' oracle infrastructure *in general*. Check this directly (Chainlink's feed registry / X Layer docs) before committing the halt trigger to read a live feed. If no live feed is reachable, the fallback is identical in design intent: a mock oracle contract replicating the confirmed `pauseOracle()` state machine, keyed to the same real, confirmed CA activation timing (00:30 UTC day after Ex-Date) — not a compromise, just a substitution of data source.
+This was the long-standing open item ("is a live Chainlink feed queryable on X Layer?"). Answered, and the answer changes two design assumptions.
+
+**Real price data for NVDA does exist on X Layer — mainnet only.** OKX adopted Chainlink on X Layer mainnet in June 2026, with coverage explicitly including 24/5 equities streams for TSLA, NVDA and AAPL. Nothing equivalent exists on testnet, which is why the mock oracle stays for this build.
+
+**But it's Data Streams, not Data Feeds — a different integration shape, not an address swap.** Data Feeds are push-based: a contract sits on-chain holding a current price you read with `latestRoundData()`. Data Streams are **pull-based**: reports are signed off-chain and the *consumer* submits one with their transaction, verified on-chain against a verifier contract. There is no contract holding a readable current price.
+
+That breaks an assumption in the current design. `Market._requireFreshPrice()` reads a price mid-transaction inside `borrow()` and `liquidate()`; under Data Streams there is nothing to read, so every price-dependent action would need a signed report passed in by the caller. The halt state machine, gating, settlement and leverage stack are all unaffected — this is purely the ingestion layer, but it is real engineering, not configuration.
+
+**No feed exposes a pause flag.** Chainlink's own tokenized-equity integrator docs are explicit: consumers detect a corporate-action pause via **staleness**, not a boolean — *"Integrators should read `updatedAt` and implement staleness bounds appropriate to their use case."* The pause state lives in the issuer's oracle registry, off-chain. The behaviour itself is confirmed — *"Paused mode (`paused == true`): The feed stops publishing new prices and holds the last known good value"* — it simply isn't queryable from a contract.
+
+So `IPausableOracle.isPaused()` is a mock convenience, not a real interface. The production-correct detection path is the staleness check `Market._requireFreshPrice()` **already implements** against `maxOracleStaleness`.
+
+**The complication that needs solving before mainnet:** these feeds also stop updating during ordinary market closure — *"these feeds do not have heartbeats during off-hours"* (weekends, holidays, overnight). Staleness alone therefore cannot distinguish "corporate action in progress" from "it is Saturday," and a naive staleness-triggered halt would halt the market every weekend. Distinguishing them requires either the CF Benchmarks corporate-action feed (§3.1) or a market-hours calendar. That promotes the CF Benchmarks integration from a roadmap nicety to the actual missing piece of a mainnet halt trigger.
+
+Sources: [Chainlink tokenized-equity feed docs](https://docs.chain.link/data-feeds/tokenized-equity-feeds), [OKX × Chainlink Data Streams on X Layer](https://web3.okx.com/learn/xlayer-chainlink-data-streams).
 
 ---
 
@@ -124,7 +138,8 @@ OPEN → HALTING → HALTED → RESUMING → OPEN
 | # | Edge case | Required handling |
 |---|---|---|
 | 1 | No real xStocks (raw or wrapped) exist on X Layer testnet | Mock wNVDAx-equivalent token, non-rebasing/exchange-rate-accruing, paired with real testnet USDG. State this plainly in the pitch. |
-| 2 | Live Chainlink feed for wNVDAx on X Layer unconfirmed | Resolve before Day 1 (§3.4, §8); fallback is a mock oracle keyed to the same real CA timing — not a design compromise. |
+| 2 | No live price feed reachable on X Layer testnet | Resolved (§3.4): real NVDA data exists on X Layer *mainnet* only, and as pull-based Data Streams rather than a readable feed. Mock oracle keyed to the same real CA timing stays for this build — a substitution of data source, not a design compromise. |
+| 2b | A mainnet halt trigger can't tell a corporate action from a weekend | Staleness detection alone is ambiguous — feeds have no off-hours heartbeat (§3.4). Needs the CF Benchmarks CA feed or a market-hours calendar before any mainnet halt trigger is trustworthy. Out of scope for this build; named explicitly rather than glossed. |
 | 3 | Corporate Action Guard's gate model doesn't match HaltGate's oracle-pause trigger | Reference its pattern, don't force a direct dependency — its receipt/schedule model and HaltGate's oracle-state model solve the same class of problem differently. |
 | 4 | Liquidation math untestable against a real CA event in a 9-day window | Use the CA-timing toggle to simulate a halt/resume cycle for the demo; don't claim mainnet-readiness is proven. |
 | 5 | Interest accrual during halt | Freeze the interest index during HALTED — disclose this rather than silently accruing. |
@@ -137,7 +152,8 @@ OPEN → HALTING → HALTED → RESUMING → OPEN
 
 ## 7. Open risks / unverified dependencies
 
-- **Live Chainlink feed reachability for wNVDAx on X Layer** (§3.4) — the one real remaining technical unknown; resolve before Day 1, fallback already designed.
+- ~~**Live Chainlink feed reachability for wNVDAx on X Layer**~~ — **resolved 2026-09-18, see §3.4.** Real NVDA data exists on X Layer *mainnet* via Chainlink Data Streams; nothing on testnet, so the mock stays. Two consequences replace this risk: Data Streams is pull-based (price ingestion must be rebuilt, not repointed), and no feed exposes a pause flag (detection is staleness-based, which can't tell a corporate action from a weekend without a CA feed or market-hours calendar).
+- **Backed's documented `pauseOracle()` behaviour** (§3.1) — the single load-bearing fact of the whole thesis. Chainlink's own tokenized-equity docs independently corroborate the pause behaviour, but re-check the primary source before presenting: if this is overstated, the premise weakens.
 - **xStocks $91.5M/836-asset market-cap figure** — single-sourced, don't cite as confirmed in the pitch without independently pulling it from a primary dashboard.
 - **OKX Dev Day's specific judging rubric** (Innovation/Market Value/Completion weighting, AI auto-scoring, Demo Video bonus) — **not stated on the official event page**, which instead says "final... judging criteria will be shared with selected teams." Build toward "a working, onchain-verifiable product," which the page does explicitly say is the bar, rather than optimizing for an unconfirmed scoring mechanic.
 - **OKX Dev Day RWA track's specific claimed partner list** (Paxos, Morningstar, Centrifuge) — still not independently confirmed; doesn't block the build.
@@ -265,7 +281,9 @@ Right now, halting "the market" doesn't prove halts are *per-asset* — there's 
 
 ## 12. Mainnet migration path
 
-Everything in §4 and §11 targets X Layer testnet. Migration to X Layer mainnet is a **migration, not a rebuild** — same zkEVM architecture, same Solidity — but five components were deliberately mocked for testnet and need real rework, not just a redeploy with new constructor args.
+Everything in §4 and §11 targets X Layer testnet. Migration to X Layer mainnet is a **migration, not a rebuild** — same zkEVM architecture, same Solidity — but several components were deliberately mocked for testnet and need real rework, not just a redeploy with new constructor args.
+
+Revised 2026-09-18 after §3.4 was resolved: the oracle work is substantially larger than this section first assumed. It is not an address swap — Data Streams' pull-based model means price ingestion has to be rebuilt, not repointed.
 
 **Carries over unchanged (redeploy only):** `Market.sol`, `LenderVault.sol`, `InterestRateModel.sol`, `HaltController.sol` state machine, `Multisig.sol`/Timelock mechanics, and the Phase 1–3 additions above once built.
 
@@ -273,7 +291,8 @@ Everything in §4 and §11 targets X Layer testnet. Migration to X Layer mainnet
 
 | Component | Testnet (current/planned) | Mainnet requirement |
 |---|---|---|
-| Halt signal | Multisig manually calls `pauseOracle()`/`resumeOracle()` on a mock | Real trust-minimized signal — Backed's own oracle pause (§3.1) or CF Benchmarks' CA feed (§3.1), not self-triggered. This is the product's core IP and needs dedicated design work, not a drop-in swap. |
+| Price ingestion | Mock contract with a readable `latestPrice()` | **Chainlink Data Streams on X Layer mainnet — pull-based, so there is no contract holding a current price to read (§3.4).** Every price-dependent path (`borrow`, `liquidate`, `SwapModule`) needs a caller-supplied signed report verified on-chain. The largest single piece of mainnet work, and bigger than §12 originally implied. |
+| Halt signal | Multisig manually calls `pauseOracle()`/`resumeOracle()` on a mock | No feed exposes a pause flag (§3.4) — detection is via `updatedAt` staleness, which `_requireFreshPrice()` already does. **But staleness cannot distinguish a corporate action from a weekend**, so this needs the CF Benchmarks CA feed or a market-hours calendar. This is the product's core IP and the real design work. |
 | Collateral token | `wNVDAx` mock ERC20 with a faucet | Real xStock token from the actual issuer (Backed) — different custody/redemption trust assumptions, no faucet. |
 | `SwapModule` (§11) | Internal oracle-priced swap (no testnet DEX liquidity) | Route through a real DEX/aggregator if liquidity exists (§3.2's confirmed ~$588K TVL Uniswap pool) — an internal fixed-price swap holding real money is a manipulation vector. |
 | Risk parameters | Demo defaults (LTV, liquidation threshold, rate curve, reserve factor) | Re-derived from real volatility/liquidity data before real TVL sits behind them. |

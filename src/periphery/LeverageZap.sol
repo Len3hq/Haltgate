@@ -7,39 +7,27 @@ import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol
 import {Market} from "../core/Market.sol";
 import {SwapModule} from "./SwapModule.sol";
 
-/// @notice Leveraged long in one transaction (BUILD.md §11 Milestones 1-2).
-/// `leverage()` runs a single supply -> borrow -> swap -> supply pass;
-/// `multiply()` repeats that pass until a target leverage multiple is
-/// reached. Both share one internal step implementation so the two paths
-/// can't drift apart.
+/// @notice Leveraged long in one transaction. `leverage()` runs a single
+/// supply -> borrow -> swap -> supply pass; `multiply()` repeats it to a target
+/// multiple. Both share one internal step so they can't drift apart.
 ///
-/// Stateless and permissionless: takes `market` and `swapModule` as call
-/// parameters rather than being fixed to one pair at deploy time, so one
-/// deployment keeps working once BUILD.md §11 Milestone 4 adds more markets.
+/// Stateless: market and swapModule are call parameters, not deploy-time
+/// constants, so one deployment survives redeploys and future markets.
 ///
-/// Requires the caller to have already called
-/// `market.setOperator(address(this), true)` -- Market.supply()/borrow() are
-/// hardcoded to credit msg.sender's own position, so this contract calling
-/// them directly would otherwise end up owning the resulting position
-/// itself instead of the user who actually wants it. supplyFor()/
-/// borrowFor() exist specifically to let an authorized operator act on a
-/// user's behalf while still crediting that user, not the caller.
+/// Caller must first call `market.setOperator(address(this), true)` -- Market
+/// credits msg.sender, so without that this contract would own the position.
 contract LeverageZap is ReentrancyGuard {
     using SafeERC20 for IERC20;
 
     uint256 private constant WAD = 1e18;
 
-    /// @notice Hard ceiling on requested leverage, enforced here and not only
-    /// in the UI. The real binding limit is usually far lower: a market's own
-    /// maxLTV caps achievable leverage at 1 / (1 - maxLTV), which is 2x at the
-    /// current 50% maxLTV. This is a sanity bound on the input, not a promise
-    /// the market can deliver it -- `minFinalCollateral` is what actually
-    /// protects the caller from being under-delivered.
+    /// @notice Sanity bound on the input, not a promise it's reachable -- maxLTV
+    /// caps real leverage at 1/(1-maxLTV), i.e. 2x at 50%. minFinalCollateral
+    /// is what protects the caller from under-delivery.
     uint256 public constant MAX_LEVERAGE = 5e18;
 
-    /// @notice Gas bound on the loop. Each pass closes roughly maxLTV of the
-    /// remaining gap to the target, so the series converges quickly -- at a
-    /// 50% maxLTV, 8 passes reach ~99% of the theoretical maximum.
+    /// @notice Gas bound. Each pass closes ~maxLTV of the remaining gap, so the
+    /// series converges fast.
     uint256 private constant MAX_ITERATIONS = 10;
 
     event Leveraged(
@@ -85,25 +73,13 @@ contract LeverageZap is ReentrancyGuard {
         emit Leveraged(msg.sender, address(market), initialCollateralIn, borrowAmount, collateralOut);
     }
 
-    /// @notice Repeats the borrow -> swap -> supply loop until the position's
-    /// collateral reaches `targetLeverageWad` times what it holds after the
-    /// initial deposit, or until the market's own LTV limit / available
-    /// liquidity stops it -- whichever comes first.
-    ///
-    /// Deliberately stops early rather than reverting when the target can't
-    /// be fully reached: at a 50% maxLTV the theoretical ceiling (2x) is an
-    /// asymptote that no finite number of loops ever actually touches, so
-    /// "revert unless the target is hit exactly" would reject perfectly
-    /// reasonable requests. `minFinalCollateral` is the caller's actual
-    /// protection -- it declares the least they're willing to end up with,
-    /// and the whole transaction reverts below it.
-    ///
-    /// Note the target applies to the position as a whole, including any
-    /// collateral supplied before this call, not just `initialCollateralIn`.
-    /// @param targetLeverageWad WAD multiple, e.g. 2e18 for 2x. Must be
-    /// above 1x and at or below MAX_LEVERAGE.
-    /// @param minFinalCollateral Floor on the position's total collateral
-    /// once the loop finishes.
+    /// @notice Loops borrow -> swap -> supply until collateral reaches
+    /// `targetLeverageWad` times the post-deposit position, or LTV headroom or
+    /// liquidity stops it. Stops early rather than reverting, because the
+    /// theoretical ceiling is an asymptote no finite loop count reaches.
+    /// Applies to the whole position, not just `initialCollateralIn`.
+    /// @param targetLeverageWad WAD multiple (2e18 = 2x), above 1x, <= MAX_LEVERAGE.
+    /// @param minFinalCollateral Floor on final collateral; reverts below it.
     function multiply(
         Market market,
         SwapModule swapModule,
@@ -154,17 +130,9 @@ contract LeverageZap is ReentrancyGuard {
         market.supplyFor(msg.sender, collateralOut);
     }
 
-    /// @dev How much to borrow on the next pass: enough to close the gap to
-    /// `targetCollateral`, but never more than the position's remaining LTV
-    /// headroom or the vault's actual liquid cash. Returning zero means the
-    /// loop is done -- either the target is reached, or the market can't
-    /// safely lend any more against this position.
-    ///
-    /// The headroom figure mirrors Market._maxBorrowableNative exactly; the
-    /// gap-to-debt conversion is the algebraic inverse of
-    /// SwapModule.swapDebtForCollateral's own pricing, so a pass never
-    /// overshoots the requested multiple and lands the caller in more risk
-    /// than they asked for.
+    /// @dev Next pass's borrow: enough to close the gap to `targetCollateral`,
+    /// capped by LTV headroom and vault cash. Zero means the loop is done.
+    /// Never overshoots the requested multiple.
     function _nextBorrow(Market market, SwapModule swapModule, uint256 targetCollateral)
         internal
         view
@@ -181,14 +149,10 @@ contract LeverageZap is ReentrancyGuard {
 
         uint256 headroom;
         {
-            // Deliberately kept as two separate divisions, mirroring
-            // Market._collateralValueWad -> _maxBorrowableNative step for
-            // step, rather than collapsed into one multiply-then-divide the
-            // way the rest of this codebase prefers. Collapsing it would be
-            // *more* precise and therefore wrong here: this figure has to
-            // match what Market itself will enforce, to the wei. Round even
-            // one wei higher than Market does and the very next borrowFor()
-            // reverts with ExceedsMaxLTV, killing the whole loop.
+            // Two divisions on purpose, mirroring Market's own rounding step
+            // for step. Collapsing them would be more precise and therefore
+            // wrong: round one wei high and the next borrowFor() reverts
+            // ExceedsMaxLTV, killing the loop.
             uint256 collateralValueWad = (_toWad(collateral, collateralDecimals) * price) / WAD;
             uint256 maxDebt = _fromWad((collateralValueWad * market.maxLTV()) / WAD, debtDecimals);
             if (maxDebt <= debt) return 0;

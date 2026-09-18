@@ -164,4 +164,8 @@ Detailed plan and status in [`BUILD.md`](BUILD.md).
 
 ## Mainnet migration
 
-Migration, not a rebuild — X Layer mainnet is the same zkEVM environment, and the core contracts port over unchanged. What genuinely needs rework is everything that touches the outside world: a real trust-minimized halt signal instead of a self-controlled oracle, the real xStock token, DEX routing instead of an internal priced swap, risk parameters derived from real volatility data, real multisig signers, and an audit. Detail in [`BUILD.md` §12](BUILD.md).
+Migration, not a rebuild — X Layer mainnet is the same zkEVM environment, and the core contracts port over unchanged. What needs real work is everything touching the outside world: the real xStock token, DEX routing instead of an internal priced swap, risk parameters derived from real volatility data, real multisig signers, and an audit.
+
+The oracle is the biggest piece, and larger than "swap an address." Real NVDA pricing **does** exist on X Layer mainnet — OKX adopted Chainlink there in June 2026, covering 24/5 equities including NVDA. But it ships as **Data Streams**, which is pull-based: there's no contract holding a current price to read, so every price-dependent path needs a caller-supplied signed report verified on-chain. Separately, no feed exposes a pause flag — a corporate-action pause is detected by the feed going stale, and staleness alone can't distinguish a corporate action from a weekend. Closing that gap needs a corporate-action feed or a market-hours calendar.
+
+The halt state machine, gating, settlement and leverage stack are unaffected by any of it. Detail in [`BUILD.md` §3.4 and §12](BUILD.md).

@@ -11,32 +11,18 @@ import {InterestRateModel} from "./InterestRateModel.sol";
 import {LenderVault} from "./LenderVault.sol";
 import {IPausableOracle} from "../oracle/IPausableOracle.sol";
 
-/// @notice Single isolated market: deposit collateral (wNVDAx), borrow USDG
-/// out of LenderVault, repay with interest -- gated end to end by
-/// HaltController so a corporate-action price discontinuity can never be
-/// borrowed or liquidated against. One fixed LTV and liquidation threshold
-/// for the hackathon demo; per-tier RiskModule config is roadmap, not v1
-/// (see BUILD.md §4).
+/// @notice Single isolated market: supply wNVDAx, borrow USDG from LenderVault,
+/// repay with interest -- gated throughout by HaltController so a
+/// corporate-action price discontinuity can't be borrowed or liquidated against.
 ///
-/// Decimals: positions are stored in each token's own native decimals (what
-/// gets transferred), but every value comparison (LTV, liquidation threshold,
-/// solvency) is normalized to an 18-decimal WAD internally before comparing.
-/// This matters concretely: real testnet USDG uses 6 decimals, not 18 --
-/// confirmed directly against the live contract -- so treating collateral
-/// and debt amounts as interchangeable without normalizing would have been
-/// silently wrong by a factor of 10^12 the moment real USDG was wired in.
+/// Decimals: positions store native decimals, but every value comparison is
+/// normalized to WAD first. Real USDG is 6 decimals, not 18 -- skipping that
+/// would be silently wrong by 10^12.
 ///
-/// Interest: a Compound-v2-style borrow index. `borrowIndex` starts at 1e18
-/// and only ever grows; every position stores its own principal plus the
-/// index value at its last touch, so per-user debt is recovered lazily as
-/// `principal * borrowIndex / snapshotIndex` without ever having to iterate
-/// positions. accrueInterest() is permissionless and called at the top of
-/// every state-changing function here, so on-chain state is always current
-/// at the moment anything reads it. View functions (healthFactor,
-/// isLiquidatable, currentDebt) additionally compute what accrual WOULD
-/// produce right now without writing anything, so they're accurate even
-/// between transactions -- critical, since understating a live debt in a
-/// health check would be a real safety bug, not a display quirk.
+/// Interest: Compound-v2 borrow index. Debt is recovered lazily as
+/// `principal * borrowIndex / snapshotIndex`, never by iterating positions.
+/// View functions also compute pending accrual, so they stay accurate between
+/// transactions -- understating live debt in a health check is a safety bug.
 contract Market is Ownable, ReentrancyGuard {
     using SafeERC20 for IERC20;
 
@@ -70,12 +56,9 @@ contract Market is Ownable, ReentrancyGuard {
     uint256 public reserveFactor;
     /// @notice Max fraction of a position's debt repayable in one liquidation call.
     uint256 public constant CLOSE_FACTOR = 0.5e18;
-    /// @notice Max age (seconds) of the oracle's last update before borrow/
-    /// liquidate refuse to trust it -- independent of HaltController's state,
-    /// since that only updates when someone calls its permissionless sync().
-    /// If nobody calls sync() promptly after a real corporate-action pause,
-    /// HaltController could still report OPEN while the oracle itself is
-    /// paused or simply stale; this is Market's own defense-in-depth check.
+    /// @notice Max age of the oracle's last update before borrow/liquidate stop
+    /// trusting it. Independent of HaltController, which only updates when
+    /// someone calls sync() -- so it can report OPEN against a stale feed.
     uint256 public maxOracleStaleness;
 
     /// @notice WAD, grows monotonically as interest accrues. Never resets.
@@ -87,14 +70,9 @@ contract Market is Ownable, ReentrancyGuard {
     mapping(address => Position) public positions;
     uint256 public totalCollateral;
 
-    /// @notice owner => operator => approved. Lets a position owner
-    /// authorize another address (e.g. a LeverageZap periphery contract) to
-    /// supply/borrow on their behalf -- same idea as an ERC20 approve, fully
-    /// revocable, and never grantable by anyone but the position owner
-    /// themselves. Exists specifically so an atomic leverage loop can credit
-    /// the actual user's position instead of the zap contract's own address,
-    /// which is what calling supply()/borrow() directly from a periphery
-    /// contract would otherwise do.
+    /// @notice owner => operator => approved. Like an ERC20 approve: revocable,
+    /// and grantable only by the position owner over themselves. Exists so a
+    /// leverage loop credits the user's position rather than the zap's own.
     mapping(address => mapping(address => bool)) public isOperator;
 
     event Supplied(address indexed user, uint256 amount);
@@ -220,10 +198,8 @@ contract Market is Ownable, ReentrancyGuard {
         emit ReservesWithdrawn(to, amount);
     }
 
-    /// @notice Grants or revokes another address permission to call
-    /// supplyFor()/borrowFor() against the caller's own position. Only the
-    /// position owner can grant this over themselves -- there is no path for
-    /// an operator to be set on someone else's behalf.
+    /// @notice Grant/revoke supplyFor()/borrowFor() rights over your own
+    /// position. No path exists to set an operator on someone else's behalf.
     function setOperator(address operator, bool approved) external {
         if (operator == address(0)) revert ZeroAddress();
         isOperator[msg.sender][operator] = approved;
@@ -234,11 +210,8 @@ contract Market is Ownable, ReentrancyGuard {
         _supply(msg.sender, msg.sender, amount);
     }
 
-    /// @notice Same effect as supply(), but collateral is pulled from
-    /// msg.sender (the caller) while the resulting position is credited to
-    /// onBehalfOf -- e.g. a LeverageZap holding collateral it just swapped
-    /// into, crediting the user who authorized it rather than itself.
-    /// Requires onBehalfOf to have called setOperator(msg.sender, true) first.
+    /// @notice supply(), but pulling from msg.sender and crediting onBehalfOf.
+    /// Requires onBehalfOf to have called setOperator(msg.sender, true).
     function supplyFor(address onBehalfOf, uint256 amount)
         external
         nonReentrant
@@ -287,11 +260,9 @@ contract Market is Ownable, ReentrancyGuard {
         _borrow(msg.sender, msg.sender, amount);
     }
 
-    /// @notice Same effect as borrow(), but the debt is recorded against
-    /// onBehalfOf while the borrowed cash is sent to msg.sender (the caller)
-    /// -- e.g. a LeverageZap that needs the cash in hand to immediately swap
-    /// it into more collateral, atomically, within the same transaction.
-    /// Requires onBehalfOf to have called setOperator(msg.sender, true) first.
+    /// @notice borrow(), but debting onBehalfOf and sending the cash to
+    /// msg.sender -- e.g. a zap that swaps it on within the same transaction.
+    /// Requires onBehalfOf to have called setOperator(msg.sender, true).
     function borrowFor(address onBehalfOf, uint256 amount)
         external
         nonReentrant

@@ -17,13 +17,9 @@ contract HaltController is Ownable {
         SETTLING
     }
 
-    /// @notice Floor and ceiling on settlementDelay, both load-bearing.
-    /// The floor stops governance setting the window near zero, which would
-    /// let anyone force-settle an ordinary corporate-action halt (those
-    /// resolve in hours) and stall the market on purpose. The ceiling stops
-    /// governance setting it so far out that the indefinite-lockup this
-    /// whole mechanism exists to prevent quietly comes back. Together they
-    /// make settlement a guarantee the owner can retune but never revoke.
+    /// @notice Bounds on settlementDelay, both load-bearing: the floor stops
+    /// governance letting anyone stall an ordinary halt, the ceiling stops it
+    /// restoring the indefinite lockup. Retunable, never revocable.
     uint256 public constant MIN_SETTLEMENT_DELAY = 1 days;
     uint256 public constant MAX_SETTLEMENT_DELAY = 30 days;
 
@@ -95,31 +91,21 @@ contract HaltController is Ownable {
         bool oraclePaused = oracle.isPaused();
 
         if (oraclePaused) {
-            // A settled market stays settled while the oracle is still down.
-            // Syncing it back to HALTED would re-trap exactly the capital
-            // settlement just released, and would do so permissionlessly.
+            // SETTLING is excluded: syncing it back would permissionlessly
+            // re-trap the capital settlement just released.
             if (state != MarketState.HALTED && state != MarketState.SETTLING) {
                 _setState(MarketState.HALTED);
             }
         } else if (state == MarketState.HALTED || state == MarketState.SETTLING) {
-            // Settlement is a release valve, not a dead end -- a market whose
-            // oracle comes back healthy can still resume normally from it.
-            _setState(MarketState.RESUMING);
+            _setState(MarketState.RESUMING); // settlement is a valve, not a dead end
         }
     }
 
-    /// @notice Permissionless release valve: once the market has sat outside
-    /// OPEN for longer than settlementDelay, anyone can move it to SETTLING,
-    /// where lenders can withdraw their pro-rata share of available cash
-    /// (see LenderVault.maxRedeem) instead of waiting indefinitely on a
-    /// corporate action that may never resolve or a keeper who may never
-    /// call completeResume().
-    ///
-    /// Permissionless on purpose: a guarantee that depends on the same
-    /// governance that let the market get stuck isn't a guarantee.
-    ///
-    /// Callable from HALTING, HALTED and RESUMING alike -- capital is
-    /// restricted in all three, so all three can strand it.
+    /// @notice Release valve: once the market has sat outside OPEN for longer
+    /// than settlementDelay, anyone can move it to SETTLING, where lenders
+    /// withdraw pro-rata (see LenderVault.maxRedeem). Permissionless because a
+    /// guarantee gated on the governance that got the market stuck is no
+    /// guarantee. Callable from HALTING/HALTED/RESUMING -- all three strand capital.
     function forceSettle() external {
         if (state == MarketState.OPEN || state == MarketState.SETTLING) revert NotSettleable();
 
@@ -152,11 +138,9 @@ contract HaltController is Ownable {
         return state == MarketState.SETTLING;
     }
 
-    /// @notice Whether debt should stop growing. SETTLING is included for the
-    /// same reason HALTED is (BUILD.md §6 edge case 5): the price behind the
-    /// position is still unresolved and the market still can't liquidate, so
-    /// charging interest would push borrowers toward a liquidation they have
-    /// no way to defend against.
+    /// @notice Debt stops growing while the price is unresolved and liquidation
+    /// is off -- otherwise interest pushes borrowers toward a liquidation they
+    /// can't defend against (BUILD.md §6 edge case 5).
     function interestFrozen() external view returns (bool) {
         return state == MarketState.HALTED || state == MarketState.SETTLING;
     }
@@ -185,13 +169,9 @@ contract HaltController is Ownable {
         if (next == MarketState.OPEN) {
             haltStartedAt = 0;
         } else if (haltStartedAt == 0) {
-            // The clock starts the moment the market first leaves OPEN and
-            // keeps running across HALTING -> HALTED -> RESUMING, because
-            // what it measures is how long capital has been restricted --
-            // not how long any individual phase lasted. Restarting it on
-            // each transition would let a market cycle between those phases
-            // forever and never become settleable, which is the exact
-            // failure this mechanism exists to rule out.
+            // Set once on leaving OPEN, never restarted per phase -- it measures
+            // how long capital has been restricted. Restarting would let a
+            // market cycle between phases forever and never become settleable.
             haltStartedAt = block.timestamp;
         }
         emit StateChanged(state, next);

@@ -9,30 +9,21 @@ import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol
 import {HaltController} from "../core/HaltController.sol";
 import {IPausableOracle} from "../oracle/IPausableOracle.sol";
 
-/// @notice Stand-in for a real DEX: X Layer testnet has no liquidity for the
-/// mock wNVDAx/USDG pair, so LeverageZap (BUILD.md §11 Milestone 1) needs
-/// somewhere to convert borrowed USDG into more collateral atomically. Prices
-/// strictly off the same oracle Market itself trusts -- never an independent
-/// read -- so a leverage loop can never see a different price than the one
-/// the loan it's built on top of is collateralized against.
+/// @notice DEX stand-in -- testnet has no liquidity for the mock pair, so
+/// LeverageZap needs somewhere to convert borrowed USDG into collateral
+/// atomically. Prices off the same oracle Market trusts, so a leverage loop
+/// can never see a different price than the loan beneath it.
 ///
-/// No AMM curve: this is a priced pool that must be seeded and topped up by
-/// its owner, same as any market maker, not something that derives its own
-/// price from reserves the way a constant-product pool would.
-///
-/// Gated on HaltController.canSupplyOrBorrow() -- can't swap into more
-/// exposure to a stock whose price is currently frozen for a corporate
-/// action, the same restriction Market.supply()/borrow() already enforce.
+/// No AMM curve: a priced pool the owner seeds and tops up, not one deriving
+/// price from reserves. Halt-gated like Market.supply()/borrow().
 contract SwapModule is Ownable, ReentrancyGuard {
     using SafeERC20 for IERC20;
 
     uint256 private constant WAD = 1e18;
-    /// @notice Matches Market's own default maxOracleStaleness -- equities
-    /// don't need second-by-second freshness, but a swap still shouldn't
-    /// price off an arbitrarily old feed.
+    /// @notice Matches Market's default -- equities don't need second-by-second
+    /// freshness, but a swap shouldn't price off an arbitrarily old feed.
     uint256 private constant MAX_ORACLE_STALENESS = 24 hours;
-    /// @notice Hard ceiling the owner can never exceed, no matter how many
-    /// multisig signers agree -- mirrors Market's MAX_RESERVE_FACTOR pattern.
+    /// @notice Ceiling the owner can never exceed, however many signers agree.
     uint256 public constant MAX_FEE = 0.05e18; // 5%
 
     IERC20 public immutable collateralToken; // wNVDAx
@@ -98,9 +89,8 @@ contract SwapModule is Ownable, ReentrancyGuard {
         emit InventoryWithdrawn(token, to, amount);
     }
 
-    /// @notice Swap USDG for wNVDAx at the oracle price, minus fee. This is
-    /// the leg LeverageZap calls: borrow USDG, convert it into more
-    /// collateral, atomically, in the same transaction as the borrow.
+    /// @notice Swap USDG for wNVDAx at the oracle price, minus fee. The leg
+    /// LeverageZap calls, in the same transaction as the borrow.
     /// @return collateralOut Collateral sent to `to`, in its native decimals.
     function swapDebtForCollateral(uint256 debtAmountIn, address to)
         external
@@ -113,14 +103,9 @@ contract SwapModule is Ownable, ReentrancyGuard {
         uint256 price = _requireFreshPrice();
 
         uint256 debtWad = _toWad(debtAmountIn, debtDecimals);
-        // price is WAD debt-value per 1 WAD collateral (same convention as
-        // Market._collateralValueWad) -- so collateral = debtValue * WAD / price.
-        // Combined into one multiply-then-single-divide instead of computing
-        // debtAfterFeeWad (/WAD) and then collateralWad (*WAD/price) as two
-        // separate steps -- the /WAD and *WAD cancel algebraically, and doing
-        // so avoids rounding the intermediate down before scaling it back up
-        // (the divide-before-multiply pattern already fixed twice elsewhere:
-        // InterestRateModel.getSupplyRatePerSecond, Market._computeAccrual).
+        // price is WAD debt-value per WAD collateral (Market's convention).
+        // One multiply-then-divide: the /WAD and *WAD of the two-step form
+        // cancel, avoiding a divide-before-multiply rounding loss.
         uint256 collateralWad = (debtWad * (WAD - feeWad)) / price;
         collateralOut = _fromWad(collateralWad, collateralDecimals);
         if (collateralOut == 0) revert ZeroAmount();
@@ -131,8 +116,7 @@ contract SwapModule is Ownable, ReentrancyGuard {
         emit Swapped(msg.sender, to, false, debtAmountIn, collateralOut);
     }
 
-    /// @notice Swap wNVDAx for USDG at the oracle price, minus fee. Symmetric
-    /// counterpart to swapDebtForCollateral, for future deleverage/unwind flows.
+    /// @notice Inverse of swapDebtForCollateral, for deleverage/unwind flows.
     /// @return debtOut USDG sent to `to`, in its native decimals.
     function swapCollateralForDebt(uint256 collateralAmountIn, address to)
         external
@@ -145,8 +129,7 @@ contract SwapModule is Ownable, ReentrancyGuard {
         uint256 price = _requireFreshPrice();
 
         uint256 collateralWad = _toWad(collateralAmountIn, collateralDecimals);
-        // All three multiplications before the single final division -- same
-        // combined-expression fix as swapDebtForCollateral above.
+        // All multiplications before the single division, as above.
         uint256 debtAfterFeeWad = (collateralWad * price * (WAD - feeWad)) / (WAD * WAD);
         debtOut = _fromWad(debtAfterFeeWad, debtDecimals);
         if (debtOut == 0) revert ZeroAmount();
@@ -157,11 +140,8 @@ contract SwapModule is Ownable, ReentrancyGuard {
         emit Swapped(msg.sender, to, true, collateralAmountIn, debtOut);
     }
 
-    /// @dev Deliberately independent of HaltController's state (like
-    /// Market._requireFreshPrice) -- checks the oracle's own paused flag and
-    /// staleness directly, so a swap can never execute against a frozen or
-    /// stale price even in some future path that doesn't route through
-    /// whenOpen's HaltController check.
+    /// @dev Independent of HaltController (like Market._requireFreshPrice), so
+    /// no future path can price against a frozen or stale feed.
     function _requireFreshPrice() internal view returns (uint256 price) {
         bool paused;
         uint256 updatedAt;
