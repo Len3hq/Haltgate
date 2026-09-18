@@ -184,37 +184,63 @@ OPEN → HALTING → HALTED → RESUMING → OPEN
 
 ---
 
-## 11. v2 roadmap — feature additions (post-v1, not hackathon-scoped)
+## 11. v2 build plan — feature additions (post-v1, not hackathon-scoped)
 
-v1 (§4) is deliberately narrow: single-market borrow/repay, one collateral asset, no leverage. These three additions are next, sequenced by risk to the audited core. Status as of 2026-09-17: none started; v1 is live and verified on testnet (see §9's criteria, all met).
+v1 (§4) is deliberately narrow: single-market borrow/repay, one collateral asset, no leverage. Four additions come next, built and shipped one at a time — each fully tested and deployed before the next starts, not in parallel. No deadline drives this; sequencing is purely by risk to the audited core. Status as of 2026-09-18: none started; v1 is live and verified on testnet (§9's criteria all met).
 
-**Shared prerequisite — `SwapModule`:** an internal oracle-priced wNVDAx↔USDG swap (no real DEX has liquidity for the mock testnet token), fee/spread applied, **gated on `HaltController.canSupplyOrBorrow()`** — can't swap into more exposure to a stock whose price is currently frozen. Built once, used by Phases 1 and 2.
+All four plug into the existing app — none of them replace or restructure `Market`, `LenderVault`, or the halt state machine. Two are new optional actions layered on top (leverage); one is a new borrowing *option* alongside the existing one (fixed-rate); one widens the app from one market to several, reusing the same contracts. The current supply/borrow/repay flow keeps working unchanged throughout.
 
-### Phase 1 — Leverage Zap (single-loop, "Magic Swap"-style)
-- New periphery contract `LeverageZap.sol`: one atomic tx — `supply(initial collateral) → borrow(USDG) → swap(USDG→wNVDAx via SwapModule) → supply(additional wNVDAx)`.
-- Stateless periphery; `Market`/`LenderVault` untouched, no redeploy of core contracts required.
-- Tests: happy path, halted-market revert, insufficient-liquidity revert, post-loop health-factor check.
-- Frontend: new "Leverage" tab — deposit amount, projected exposure/health factor, single confirm tx.
+**Build note that applies from Milestone 1 onward:** even though only one market (wNVDAx/USDG) exists until Milestone 4, `LeverageZap` and the Milestone 3 fixed-term position tracking should both take a **market address as a parameter** from the start, not assume a single hardcoded market. Building this in from Milestone 1 avoids retrofitting the periphery/core contracts later when Milestone 4 adds more markets — the cost of designing for it now is near zero, the cost of bolting it on after is a re-audit of both contracts.
 
-### Phase 2 — Multiply (recursive leverage, Kamino-style)
-- Extends `LeverageZap` with a `targetLeverage` param — loops borrow→swap→supply until the target multiple is reached, hard-capped in the contract (not just the UI; e.g. max 5x).
-- Open design decision: whether a loop iteration that would breach the LTV safety margin reverts the whole tx or just stops early at the last safe multiple.
-- Tests: multiplier accuracy at 2x/3x/5x, revert beyond max cap, revert on any iteration breaching LTV.
-- Frontend: leverage slider (1x–5x) on the same tab, live projected health factor as it moves.
+### Milestone 0 — SwapModule (shared prerequisite for Milestones 1–2)
+Internal oracle-priced wNVDAx↔USDG swap — no real DEX has liquidity for the mock testnet token, so this stands in for one.
+- [ ] Contract: swap priced off the existing oracle, with a fee/spread.
+- [ ] Gate it on `HaltController.canSupplyOrBorrow()` — no swapping into more exposure while the market is halted.
+- [ ] Tests: correct pricing, fee application, halted-market revert.
+- [ ] Deploy to testnet, verify wiring.
 
-### Phase 3 — Fixed-Rate Borrow Without Liquidation (Offerbook-style)
-The larger addition — touches core `Market` risk/settlement logic, not just periphery.
-- Open design decisions (confirm before coding):
-  - New position type inside the existing `Market`/`LenderVault` (shared pool liquidity) rather than an isolated P2P contract — avoids fragmenting liquidity, consistent with the "additive, not rearchitecture" decision from the council review of Offerbook (§2-adjacent).
-  - Maturity clock behavior during `HALTED`: pause (mirrors the existing interest-freeze precedent for variable-rate debt) vs. keep running.
-  - Default/settlement at maturity: pool/lender claims collateral at a fixed conversion — no price-triggered liquidation involved, by design.
-  - How LP withdrawals interact with capital locked in unmatured fixed-term loans — `LenderVault.maxRedeem()`'s halt-gate logic will need to account for this pool too.
-- Contract changes: likely a `FixedTermPosition` struct/mapping in `Market.sol`, plus `borrowFixed()` / `repayFixed()` / `settleMatured()`, separate from the existing variable-rate accrual path.
-- Tests: origination, on-time repay, halt-during-term (clock pause), maturity default/seizure, LP liquidity impact.
-- Frontend: new "Fixed" borrow tab alongside the existing variable-rate one.
-- Redeploy cost: Market + LenderVault again (core logic change, not periphery) — expected, matches the established immutable-reference redeploy pattern used for every prior core fix.
+### Milestone 1 — Leverage Zap (single-loop "buy more in one click")
+- [ ] New periphery contract `LeverageZap.sol`: one atomic transaction — supply collateral → borrow USDG → swap it for more wNVDAx via SwapModule → supply that too.
+- [ ] No changes to `Market`/`LenderVault` — periphery only, no core redeploy.
+- [ ] Tests: happy path, halted-market revert, insufficient-liquidity revert, resulting health factor stays safe.
+- [ ] Frontend: "Leverage" tab — enter amount, see projected exposure/health factor, one confirm.
+- [ ] Deploy, verify live on testnet, demo the halted-state revert explicitly.
 
-**Sequencing rationale:** Phases 1–2 are additive/periphery, low risk to the audited core, ship fast, and reinforce the halt thesis ("halt-aware leverage"). Phase 3 is the deeper structural differentiator but carries the most design and testing risk, so it's sequenced last, after the two lower-risk wins are shipped and demoable.
+### Milestone 2 — Multiply (pick a target multiple, e.g. "3x")
+- [ ] Extend `LeverageZap` with a target-leverage parameter — loops the borrow→swap→supply cycle until that multiple is reached.
+- [ ] Hard-cap max leverage in the contract itself, not just the UI (e.g. 5x).
+- [ ] Decide and implement: if a loop step would breach the safe LTV margin, does the whole transaction revert, or does it stop early at the last safe multiple?
+- [ ] Tests: accuracy at 2x/3x/5x, revert beyond the cap, revert (or safe stop) on any step breaching LTV.
+- [ ] Frontend: leverage slider (1x–5x) on the same tab, live health-factor preview as it moves.
+- [ ] Deploy, verify live on testnet.
+
+### Milestone 3 — Fixed-Rate Borrow Without Liquidation (new loan type, not a replacement)
+The larger addition — this one does touch `Market`'s core risk/settlement logic, unlike Milestones 1–2.
+- [ ] Confirm design decisions before writing code:
+  - New position type lives inside the existing `Market`/`LenderVault` (shares the same pool liquidity) rather than a separate isolated contract.
+  - During a halt, does the loan's maturity countdown pause (mirroring how interest already freezes for variable-rate debt), or keep running?
+  - At maturity, an unpaid loan settles by the pool claiming collateral at a fixed conversion rate — no price-based liquidation involved, by design.
+  - `LenderVault.maxRedeem()`'s halt-gate needs to account for capital locked in unmatured fixed-term loans too.
+- [ ] Contracts: new position tracking in `Market.sol` plus `borrowFixed()` / `repayFixed()` / `settleMatured()`, separate from the existing variable-rate path.
+- [ ] Tests: origination, on-time repay, halt-during-term (clock pause), maturity default/seizure, impact on LP withdrawals.
+- [ ] Frontend: new "Fixed" tab alongside the existing variable-rate borrow flow — both remain available side by side.
+- [ ] Redeploy Market + LenderVault together (core logic change — same immutable-reference cascade as every prior core fix), verify wiring on testnet.
+
+### Milestone 4 — Multi-Market Support (more than one collateral token)
+Right now, halting "the market" doesn't prove halts are *per-asset* — there's nothing else running to contrast it against. Deploying a second (and ideally third) full market for a different xStock (e.g. wTSLAx, wSPYx) lets the demo show one stock halted for earnings while another keeps trading normally, side by side — a materially stronger demonstration of the core thesis than a single on/off toggle.
+
+- [ ] Confirm design decisions before starting:
+  - Debt token stays shared (USDG) across markets, but liquidity is **not** pooled across them — each market keeps its own isolated `LenderVault`, matching the existing Compound-v2-style isolated-market pattern already in place. Tradeoff to accept explicitly: LP liquidity is fragmented per market, not aggregated into one shared pool (aggregating would be a materially larger change — out of scope here).
+  - Each market gets its own oracle instance, independently pausable — this is what makes isolated halting demonstrable at all.
+  - Confirm `LeverageZap` (Milestone 1) and the fixed-term position logic (Milestone 3) already accept a market parameter per the build note above — if they don't yet, generalize them here before adding new markets, not after.
+- [ ] Contracts: **no new Solidity logic.** Reuse `Market.sol`, `LenderVault.sol`, `HaltController.sol`, `InterestRateModel.sol`, and the `WNVDAxFaucet.sol` pattern (generalized/parameterized) unchanged — this milestone is deployment and wiring work, not new contract design.
+- [ ] New assets: mock collateral token + faucet for at least one additional xStock (e.g. wTSLAx); a second (e.g. wSPYx) if time allows, for a 3-market demo.
+- [ ] Deploy a full second stack (oracle + HaltController + InterestRateModel + LenderVault + Market) per new asset, reusing the existing deploy-script pattern.
+- [ ] Tests: halting Market A does not affect Market B's supply/borrow/liquidate availability; each `LenderVault.maxRedeem()` gate reads only its own market's `HaltController`, never another market's.
+- [ ] Frontend: market selector (dropdown or tabs), each market with its own dashboard view and its own halt-status banner; Leverage/Multiply/Fixed-Rate tabs become market-aware instead of assuming wNVDAx.
+- [ ] Deploy to testnet, verify wiring, then verify isolation **live**: halt Market A via the multisig, confirm Market B's state and actions are entirely unaffected — this is the actual demo moment this milestone exists for.
+
+**Why this order:** Milestones 1–2 are additive and periphery-only — they can't break the audited core, and they reinforce the halt thesis directly ("can't lever up during a halt"). Milestone 3 is the real structural differentiator but carries the most design and testing risk, so it comes after the lower-risk wins are shipped and demoable. Milestone 4 comes last because it multiplies the *surface area* (more markets to wire, test, and demo) rather than adding new mechanics — better to validate leverage and fixed-rate behavior once, on one market, before multiplying the number of markets they have to work correctly across.
 
 ---
 
