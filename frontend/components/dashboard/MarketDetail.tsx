@@ -26,6 +26,7 @@ import { ActivityFeed } from "@/components/dashboard/ActivityFeed";
 import { PositionPanel } from "@/components/dashboard/PositionPanel";
 import { HaltSettlementPanel } from "@/components/dashboard/HaltSettlementPanel";
 import { AssetDetails } from "@/components/dashboard/AssetDetails";
+import { PriceChart } from "@/components/dashboard/PriceChart";
 import { TestnetTools } from "@/components/dashboard/TestnetTools";
 
 const STATE_LABEL = ["OPEN", "HALTING", "HALTED", "RESUMING", "SETTLING"] as const;
@@ -159,6 +160,7 @@ function DetailBody({ marketKey }: { marketKey: string }) {
           {tab === "overview" ? (
             <>
               <HaltStatusBanner />
+              <PriceChart config={config} />
               <HaltSettlementPanel />
               <RateCurveChart />
               <AssetDetails config={config} />

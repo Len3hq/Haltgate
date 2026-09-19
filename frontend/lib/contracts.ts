@@ -14,6 +14,8 @@ export type MarketConfig = {
   name: string;
   /** Collateral token symbol, e.g. "wNVDAx". */
   symbol: string;
+  /** Real-world ticker for the reference price chart. */
+  tradingViewSymbol: string;
   collateral: `0x${string}`;
   faucet: `0x${string}`;
   oracle: `0x${string}`;
@@ -37,6 +39,7 @@ export const MARKETS: readonly MarketConfig[] = [
     key: "nvda",
     name: "NVIDIA",
     symbol: "wNVDAx",
+    tradingViewSymbol: "NASDAQ:NVDA",
     collateral: "0xe37088E75e24AbE5DE1ac6d188803405D9DEbb42",
     faucet: "0xBCFDa358dfdA7d8FFB53e2294846809c5DB8b57D",
     oracle: "0x6092743d17D892c2C6033CF323783Bd7ec5952D4",
@@ -49,6 +52,7 @@ export const MARKETS: readonly MarketConfig[] = [
     key: "tsla",
     name: "Tesla",
     symbol: "wTSLAx",
+    tradingViewSymbol: "NASDAQ:TSLA",
     collateral: "0x3a18BcB208dCF1A5e65d8243E7337F8be3Bb2A13",
     faucet: "0x2e167DBB68E47c17dc28b7DB6D8A00E896D55692",
     oracle: "0xa15Be4B64b08EEfcc85ad375AD391A167DEdF3E2",
@@ -61,6 +65,7 @@ export const MARKETS: readonly MarketConfig[] = [
     key: "aapl",
     name: "Apple",
     symbol: "wAAPLx",
+    tradingViewSymbol: "NASDAQ:AAPL",
     collateral: "0x457e9D75e6ACE368d12442616471EEe28D2Df19c",
     faucet: "0x3a67fF41E0A14EcCFABff32fD4aEd1aD69a75ad1",
     oracle: "0x365262ae56532C1594B42B6C944768E1aAF9caf6",
@@ -73,6 +78,7 @@ export const MARKETS: readonly MarketConfig[] = [
     key: "msft",
     name: "Microsoft",
     symbol: "wMSFTx",
+    tradingViewSymbol: "NASDAQ:MSFT",
     collateral: "0x4Add596629BddD11C29929A7726873A19A9E95D1",
     faucet: "0x5bbE7FF75476bc86Db13292cB58d8C61a1524094",
     oracle: "0xe722cc0b1C5EadAa69a5deE603954AC71753cc19",
@@ -85,6 +91,7 @@ export const MARKETS: readonly MarketConfig[] = [
     key: "spy",
     name: "S&P 500 ETF",
     symbol: "wSPYx",
+    tradingViewSymbol: "AMEX:SPY",
     collateral: "0xe28EfB0Eb1A3b17DD59f5E1c3281B0BC147cB313",
     faucet: "0x2F515a5FF950037857cE9a5C62E677057Ef9fca4",
     oracle: "0xD1405dba838e4d01Db8581441f47Cd57D49F7f8E",
