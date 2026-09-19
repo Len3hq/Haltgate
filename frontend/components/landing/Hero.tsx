@@ -49,7 +49,7 @@ export function Hero() {
 
         <p className="hero-reveal mx-auto mt-6 max-w-2xl text-balance text-base text-[var(--color-text-muted)] sm:text-lg">
           HaltGate is a credit desk for xStocks collateral that automatically freezes risk the moment a corporate
-          action halts trading -- so you&apos;re never liquidated against a stale price, and the pool is never left
+          action halts trading — so you&apos;re never liquidated against a stale price, and the pool is never left
           exposed to one.
         </p>
 

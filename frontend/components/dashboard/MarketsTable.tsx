@@ -25,7 +25,7 @@ const STATE_STYLE: Record<string, string> = {
 };
 
 function utilizationPct(cash: bigint | undefined, borrows: bigint | undefined): string {
-  if (cash === undefined || borrows === undefined) return "--";
+  if (cash === undefined || borrows === undefined) return "—";
   const total = cash + borrows;
   if (total === 0n) return "0%";
   return `${(Number((borrows * 10000n) / total) / 100).toFixed(1)}%`;
@@ -81,10 +81,10 @@ function MarketRow({ config }: { config: MarketConfig }) {
         ${formatPrice(priceData?.[0])}
       </span>
 
-      {/* Rates are meaningless while a market is halted -- interest is frozen,
+      {/* Rates are meaningless while a market is halted — interest is frozen,
           so showing a live-looking APR would misrepresent what's happening. */}
-      <span className="text-[var(--color-success)]">{halted ? "--" : formatApr(supplyRate)}</span>
-      <span className="text-[var(--color-accent-blue)]">{halted ? "--" : formatApr(borrowRate)}</span>
+      <span className="text-[var(--color-success)]">{halted ? "—" : formatApr(supplyRate)}</span>
+      <span className="text-[var(--color-accent-blue)]">{halted ? "—" : formatApr(borrowRate)}</span>
       <span className="text-[var(--color-text-muted)]">{utilizationPct(cash, totalBorrows)}</span>
     </Link>
   );
@@ -100,7 +100,7 @@ export function MarketsTable() {
       <div className="flex items-baseline justify-between">
         <p className="text-xs uppercase tracking-wide text-[var(--color-text-faint)]">Markets</p>
         <p className="text-[11px] text-[var(--color-text-muted)]">
-          Each stock is an isolated market -- halting one leaves the others trading
+          Each stock is an isolated market — halting one leaves the others trading
         </p>
       </div>
 

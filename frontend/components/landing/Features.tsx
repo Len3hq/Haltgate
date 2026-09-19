@@ -51,12 +51,12 @@ function CheckIcon() {
 }
 
 const FEATURES = [
-  { icon: ShieldIcon, title: "Halt-aware by design", body: "Borrowing and liquidations freeze market-wide the instant a corporate action pauses the price feed -- not after the fact." },
+  { icon: ShieldIcon, title: "Halt-aware by design", body: "Borrowing and liquidations freeze market-wide the instant a corporate action pauses the price feed — not after the fact." },
   { icon: LayersIcon, title: "Three-tier governance", body: "A fast, narrow keeper for time-sensitive halts; a multisig for oracle control; a multisig + timelock for risk parameters." },
   { icon: GaugeIcon, title: "Decimals-safe accounting", body: "Every value comparison is normalized to an internal 18-decimal WAD, so a 6-decimal debt token and an 18-decimal collateral token never get compared incorrectly." },
   { icon: LockIcon, title: "Hardened against reentrancy", body: "Every state-changing function is reentrancy-guarded, and oracle freshness is checked independently of the halt state machine itself." },
-  { icon: ScaleIcon, title: "Open, permissionless liquidations", body: "Anyone can liquidate an undercollateralized position for a fixed bonus -- capped by a close factor so one price move can't wipe a position in a single call." },
-  { icon: CheckIcon, title: "Slither-clean, fully tested", body: "120 tests across the full lifecycle -- decimals, reentrancy, oracle staleness, governance, and the halt state machine itself." },
+  { icon: ScaleIcon, title: "Open, permissionless liquidations", body: "Anyone can liquidate an undercollateralized position for a fixed bonus — capped by a close factor so one price move can't wipe a position in a single call." },
+  { icon: CheckIcon, title: "Slither-clean, fully tested", body: "120 tests across the full lifecycle — decimals, reentrancy, oracle staleness, governance, and the halt state machine itself." },
 ];
 
 export function Features() {

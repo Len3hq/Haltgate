@@ -96,7 +96,7 @@ export function FaucetPanel() {
                 : `Claim ${formatAmount(claimAmount, WNVDAX_DECIMALS)}`}
           </button>
         </div>
-        <p className="mt-1 text-xs text-[var(--color-text-muted)]">One-time self-serve claim per address -- no owner needed.</p>
+        <p className="mt-1 text-xs text-[var(--color-text-muted)]">One-time self-serve claim per address — no owner needed.</p>
         <TxStatus
           hash={claim.data}
           isPending={claim.isPending}
@@ -111,7 +111,7 @@ export function FaucetPanel() {
         <div className="mt-2 rounded-[var(--radius-card)] bg-[var(--color-bg-elevated)] p-3">
           <p className="text-sm text-[var(--color-text)]">Mint test wNVDAx (owner)</p>
           <p className="mt-0.5 text-xs text-[var(--color-text-muted)]">
-            You&apos;re connected as the wNVDAx owner -- mint any amount to any address, or restock the faucet above.
+            You&apos;re connected as the wNVDAx owner — mint any amount to any address, or restock the faucet above.
           </p>
           <div className="mt-2 flex flex-col gap-2 sm:flex-row">
             <input

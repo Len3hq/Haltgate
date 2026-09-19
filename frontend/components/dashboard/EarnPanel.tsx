@@ -208,18 +208,18 @@ export function EarnPanel() {
 
       {tab === "withdraw" && canLiquidate === false && isSettling !== true && (
         <p className="mt-3 rounded-[var(--radius-card)] bg-[var(--color-warning-bg)] px-3 py-2 text-xs text-[var(--color-warning)]">
-          Withdrawals are paused while the market is halted -- see the status banner above. Deposits still work as normal.
+          Withdrawals are paused while the market is halted — see the status banner above. Deposits still work as normal.
         </p>
       )}
       {tab === "withdraw" && isSettling === true && (
         <p className="mt-3 rounded-[var(--radius-card)] bg-[var(--color-warning-bg)] px-3 py-2 text-xs text-[var(--color-warning)]">
           Settlement is open: you can withdraw your proportional share of whatever USDG is currently liquid. The rest stays claimable as
-          borrowers repay -- nobody can drain the pool ahead of you.
+          borrowers repay — nobody can drain the pool ahead of you.
         </p>
       )}
       {insufficientLiquidity && canLiquidate !== false && (
         <p className="mt-3 rounded-[var(--radius-card)] bg-[var(--color-warning-bg)] px-3 py-2 text-xs text-[var(--color-warning)]">
-          Only {formatAmount(maxWithdrawable, USDG_DECIMALS)} USDG is liquid right now -- the rest is out on loan to borrowers.
+          Only {formatAmount(maxWithdrawable, USDG_DECIMALS)} USDG is liquid right now — the rest is out on loan to borrowers.
         </p>
       )}
 
@@ -257,7 +257,7 @@ export function EarnPanel() {
             isSuccess={approveReceipt.isSuccess}
             error={approve.error}
             pendingLabel="Confirm approval in wallet..."
-            successLabel="Approved -- you can now submit the transaction below."
+            successLabel="Approved — you can now submit the transaction below."
           />
         </>
       ) : (

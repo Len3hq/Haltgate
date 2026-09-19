@@ -49,13 +49,19 @@ contract LenderVault is ERC4626, Ownable, ReentrancyGuard {
         IERC20(asset()).safeTransfer(to, amount);
     }
 
-    /// @notice Cash + outstanding loans (interest-inclusive) - reserves.
+    /// @notice Cash + outstanding variable loans (interest-inclusive) + fixed-term
+    /// principal - reserves.
+    /// @dev Fixed-term interest is deliberately excluded until it is actually
+    /// repaid, so the vault never marks up yield it hasn't earned. A default
+    /// therefore shows up here as the principal disappearing, which is exactly
+    /// what it is, until governance converts the seized collateral back.
     /// @dev Summed left-to-right on purpose: totalBorrows alone can fall below
     /// totalReserves after a full repayment, and subtracting them in isolation
     /// underflowed and permanently bricked every deposit/withdraw.
     function totalAssets() public view override returns (uint256) {
         (uint256 pendingTotalBorrows, uint256 pendingTotalReserves) = market.pendingBorrowsAndReserves();
-        return IERC20(asset()).balanceOf(address(this)) + pendingTotalBorrows - pendingTotalReserves;
+        return IERC20(asset()).balanceOf(address(this)) + pendingTotalBorrows + market.totalFixedPrincipal()
+            - pendingTotalReserves;
     }
 
     /// @notice OPEN: capped at liquid cash. Halted: zero -- otherwise LPs could

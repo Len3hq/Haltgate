@@ -24,7 +24,7 @@ function Pill({ config, active }: { config: MarketConfig; active: boolean }) {
   return (
     <Link
       href={`/app/${config.key}`}
-      title={`${config.name} -- ${label}`}
+      title={`${config.name} — ${label}`}
       className={`flex shrink-0 items-center gap-1.5 rounded-[var(--radius-pill)] border px-2.5 py-1 text-[11px] transition-colors ${
         active
           ? "border-[var(--color-accent)] text-[var(--color-text)]"

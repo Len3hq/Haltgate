@@ -1194,6 +1194,20 @@ export const marketAbi = [
   {
     type: 'function',
     inputs: [],
+    name: 'MAX_FIXED_TERM',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'MIN_FIXED_TERM',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
     name: 'accrueInterest',
     outputs: [],
     stateMutability: 'nonpayable',
@@ -1202,6 +1216,17 @@ export const marketAbi = [
     type: 'function',
     inputs: [{ name: 'amount', internalType: 'uint256', type: 'uint256' }],
     name: 'borrow',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'collateralAmount', internalType: 'uint256', type: 'uint256' },
+      { name: 'borrowAmount', internalType: 'uint256', type: 'uint256' },
+      { name: 'term', internalType: 'uint256', type: 'uint256' },
+    ],
+    name: 'borrowFixed',
     outputs: [],
     stateMutability: 'nonpayable',
   },
@@ -1259,6 +1284,32 @@ export const marketAbi = [
   },
   {
     type: 'function',
+    inputs: [{ name: '', internalType: 'address', type: 'address' }],
+    name: 'fixedLoans',
+    outputs: [
+      { name: 'collateral', internalType: 'uint256', type: 'uint256' },
+      { name: 'principal', internalType: 'uint256', type: 'uint256' },
+      { name: 'owed', internalType: 'uint256', type: 'uint256' },
+      { name: 'maturity', internalType: 'uint256', type: 'uint256' },
+    ],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'fixedMaxLTV',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'fixedRatePerYear',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
     inputs: [{ name: 'user', internalType: 'address', type: 'address' }],
     name: 'getPosition',
     outputs: [
@@ -1290,6 +1341,13 @@ export const marketAbi = [
     outputs: [
       { name: '', internalType: 'contract InterestRateModel', type: 'address' },
     ],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'user', internalType: 'address', type: 'address' }],
+    name: 'isFixedDefaulted',
+    outputs: [{ name: '', internalType: 'bool', type: 'bool' }],
     stateMutability: 'view',
   },
   {
@@ -1413,6 +1471,16 @@ export const marketAbi = [
   },
   {
     type: 'function',
+    inputs: [
+      { name: 'principal', internalType: 'uint256', type: 'uint256' },
+      { name: 'term', internalType: 'uint256', type: 'uint256' },
+    ],
+    name: 'quoteFixed',
+    outputs: [{ name: 'owed', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
     inputs: [],
     name: 'renounceOwnership',
     outputs: [],
@@ -1428,9 +1496,33 @@ export const marketAbi = [
   {
     type: 'function',
     inputs: [],
+    name: 'repayFixed',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [],
     name: 'reserveFactor',
     outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
     stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'seizedCollateral',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'newFixedMaxLTV', internalType: 'uint256', type: 'uint256' },
+      { name: 'newFixedRatePerYear', internalType: 'uint256', type: 'uint256' },
+    ],
+    name: 'setFixedParams',
+    outputs: [],
+    stateMutability: 'nonpayable',
   },
   {
     type: 'function',
@@ -1490,6 +1582,13 @@ export const marketAbi = [
   },
   {
     type: 'function',
+    inputs: [{ name: 'user', internalType: 'address', type: 'address' }],
+    name: 'settleMatured',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
     inputs: [{ name: 'amount', internalType: 'uint256', type: 'uint256' }],
     name: 'supply',
     outputs: [],
@@ -1516,6 +1615,13 @@ export const marketAbi = [
     type: 'function',
     inputs: [],
     name: 'totalCollateral',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'totalFixedPrincipal',
     outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
     stateMutability: 'view',
   },
@@ -1551,6 +1657,16 @@ export const marketAbi = [
     stateMutability: 'nonpayable',
   },
   {
+    type: 'function',
+    inputs: [
+      { name: 'to', internalType: 'address', type: 'address' },
+      { name: 'amount', internalType: 'uint256', type: 'uint256' },
+    ],
+    name: 'withdrawSeizedCollateral',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
     type: 'event',
     anonymous: false,
     inputs: [
@@ -1563,6 +1679,98 @@ export const marketAbi = [
       },
     ],
     name: 'Borrowed',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      { name: 'user', internalType: 'address', type: 'address', indexed: true },
+      {
+        name: 'collateral',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+      {
+        name: 'principal',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+      {
+        name: 'owed',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+      {
+        name: 'maturity',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+    ],
+    name: 'FixedBorrowed',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      { name: 'user', internalType: 'address', type: 'address', indexed: true },
+      { name: 'by', internalType: 'address', type: 'address', indexed: true },
+      {
+        name: 'principal',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+      {
+        name: 'collateralSeized',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+    ],
+    name: 'FixedDefaulted',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'fixedMaxLTV',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+      {
+        name: 'fixedRatePerYear',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+    ],
+    name: 'FixedParamsUpdated',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      { name: 'user', internalType: 'address', type: 'address', indexed: true },
+      {
+        name: 'owed',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+      {
+        name: 'collateralReturned',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+    ],
+    name: 'FixedRepaid',
   },
   {
     type: 'event',
@@ -1763,6 +1971,20 @@ export const marketAbi = [
     type: 'event',
     anonymous: false,
     inputs: [
+      { name: 'to', internalType: 'address', type: 'address', indexed: true },
+      {
+        name: 'amount',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+    ],
+    name: 'SeizedCollateralWithdrawn',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
       { name: 'user', internalType: 'address', type: 'address', indexed: true },
       {
         name: 'amount',
@@ -1791,11 +2013,20 @@ export const marketAbi = [
   { type: 'error', inputs: [], name: 'InsufficientCollateral' },
   { type: 'error', inputs: [], name: 'InsufficientLiquidity' },
   { type: 'error', inputs: [], name: 'InsufficientReserves' },
+  { type: 'error', inputs: [], name: 'InvalidFixedParams' },
   { type: 'error', inputs: [], name: 'InvalidReserveFactor' },
   { type: 'error', inputs: [], name: 'InvalidRiskParams' },
+  { type: 'error', inputs: [], name: 'InvalidTerm' },
+  { type: 'error', inputs: [], name: 'LoanAlreadyOpen' },
   { type: 'error', inputs: [], name: 'MarketHalted' },
+  { type: 'error', inputs: [], name: 'NoFixedLoan' },
   { type: 'error', inputs: [], name: 'NotAuthorized' },
   { type: 'error', inputs: [], name: 'NotLiquidatable' },
+  {
+    type: 'error',
+    inputs: [{ name: 'maturity', internalType: 'uint256', type: 'uint256' }],
+    name: 'NotMatured',
+  },
   { type: 'error', inputs: [], name: 'OraclePausedDirectly' },
   {
     type: 'error',
@@ -2062,7 +2293,11 @@ export const mockUsdgAbi = [
 export const mockWrappedXStockAbi = [
   {
     type: 'constructor',
-    inputs: [{ name: 'owner_', internalType: 'address', type: 'address' }],
+    inputs: [
+      { name: 'name_', internalType: 'string', type: 'string' },
+      { name: 'symbol_', internalType: 'string', type: 'string' },
+      { name: 'owner_', internalType: 'address', type: 'address' },
+    ],
     stateMutability: 'nonpayable',
   },
   {
@@ -3742,6 +3977,22 @@ export const useReadMarketCloseFactor = /*#__PURE__*/ createUseReadContract({
 })
 
 /**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link marketAbi}__ and `functionName` set to `"MAX_FIXED_TERM"`
+ */
+export const useReadMarketMaxFixedTerm = /*#__PURE__*/ createUseReadContract({
+  abi: marketAbi,
+  functionName: 'MAX_FIXED_TERM',
+})
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link marketAbi}__ and `functionName` set to `"MIN_FIXED_TERM"`
+ */
+export const useReadMarketMinFixedTerm = /*#__PURE__*/ createUseReadContract({
+  abi: marketAbi,
+  functionName: 'MIN_FIXED_TERM',
+})
+
+/**
  * Wraps __{@link useReadContract}__ with `abi` set to __{@link marketAbi}__ and `functionName` set to `"borrowIndex"`
  */
 export const useReadMarketBorrowIndex = /*#__PURE__*/ createUseReadContract({
@@ -3790,6 +4041,31 @@ export const useReadMarketDebtToken = /*#__PURE__*/ createUseReadContract({
 })
 
 /**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link marketAbi}__ and `functionName` set to `"fixedLoans"`
+ */
+export const useReadMarketFixedLoans = /*#__PURE__*/ createUseReadContract({
+  abi: marketAbi,
+  functionName: 'fixedLoans',
+})
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link marketAbi}__ and `functionName` set to `"fixedMaxLTV"`
+ */
+export const useReadMarketFixedMaxLtv = /*#__PURE__*/ createUseReadContract({
+  abi: marketAbi,
+  functionName: 'fixedMaxLTV',
+})
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link marketAbi}__ and `functionName` set to `"fixedRatePerYear"`
+ */
+export const useReadMarketFixedRatePerYear =
+  /*#__PURE__*/ createUseReadContract({
+    abi: marketAbi,
+    functionName: 'fixedRatePerYear',
+  })
+
+/**
  * Wraps __{@link useReadContract}__ with `abi` set to __{@link marketAbi}__ and `functionName` set to `"getPosition"`
  */
 export const useReadMarketGetPosition = /*#__PURE__*/ createUseReadContract({
@@ -3820,6 +4096,15 @@ export const useReadMarketInterestRateModel =
   /*#__PURE__*/ createUseReadContract({
     abi: marketAbi,
     functionName: 'interestRateModel',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link marketAbi}__ and `functionName` set to `"isFixedDefaulted"`
+ */
+export const useReadMarketIsFixedDefaulted =
+  /*#__PURE__*/ createUseReadContract({
+    abi: marketAbi,
+    functionName: 'isFixedDefaulted',
   })
 
 /**
@@ -3931,12 +4216,29 @@ export const useReadMarketPositions = /*#__PURE__*/ createUseReadContract({
 })
 
 /**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link marketAbi}__ and `functionName` set to `"quoteFixed"`
+ */
+export const useReadMarketQuoteFixed = /*#__PURE__*/ createUseReadContract({
+  abi: marketAbi,
+  functionName: 'quoteFixed',
+})
+
+/**
  * Wraps __{@link useReadContract}__ with `abi` set to __{@link marketAbi}__ and `functionName` set to `"reserveFactor"`
  */
 export const useReadMarketReserveFactor = /*#__PURE__*/ createUseReadContract({
   abi: marketAbi,
   functionName: 'reserveFactor',
 })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link marketAbi}__ and `functionName` set to `"seizedCollateral"`
+ */
+export const useReadMarketSeizedCollateral =
+  /*#__PURE__*/ createUseReadContract({
+    abi: marketAbi,
+    functionName: 'seizedCollateral',
+  })
 
 /**
  * Wraps __{@link useReadContract}__ with `abi` set to __{@link marketAbi}__ and `functionName` set to `"totalBorrows"`
@@ -3952,6 +4254,15 @@ export const useReadMarketTotalBorrows = /*#__PURE__*/ createUseReadContract({
 export const useReadMarketTotalCollateral = /*#__PURE__*/ createUseReadContract(
   { abi: marketAbi, functionName: 'totalCollateral' },
 )
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link marketAbi}__ and `functionName` set to `"totalFixedPrincipal"`
+ */
+export const useReadMarketTotalFixedPrincipal =
+  /*#__PURE__*/ createUseReadContract({
+    abi: marketAbi,
+    functionName: 'totalFixedPrincipal',
+  })
 
 /**
  * Wraps __{@link useReadContract}__ with `abi` set to __{@link marketAbi}__ and `functionName` set to `"totalReserves"`
@@ -3986,6 +4297,14 @@ export const useWriteMarketBorrow = /*#__PURE__*/ createUseWriteContract({
 })
 
 /**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link marketAbi}__ and `functionName` set to `"borrowFixed"`
+ */
+export const useWriteMarketBorrowFixed = /*#__PURE__*/ createUseWriteContract({
+  abi: marketAbi,
+  functionName: 'borrowFixed',
+})
+
+/**
  * Wraps __{@link useWriteContract}__ with `abi` set to __{@link marketAbi}__ and `functionName` set to `"borrowFor"`
  */
 export const useWriteMarketBorrowFor = /*#__PURE__*/ createUseWriteContract({
@@ -4017,6 +4336,23 @@ export const useWriteMarketRepay = /*#__PURE__*/ createUseWriteContract({
   abi: marketAbi,
   functionName: 'repay',
 })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link marketAbi}__ and `functionName` set to `"repayFixed"`
+ */
+export const useWriteMarketRepayFixed = /*#__PURE__*/ createUseWriteContract({
+  abi: marketAbi,
+  functionName: 'repayFixed',
+})
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link marketAbi}__ and `functionName` set to `"setFixedParams"`
+ */
+export const useWriteMarketSetFixedParams =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: marketAbi,
+    functionName: 'setFixedParams',
+  })
 
 /**
  * Wraps __{@link useWriteContract}__ with `abi` set to __{@link marketAbi}__ and `functionName` set to `"setInterestRateModel"`
@@ -4070,6 +4406,13 @@ export const useWriteMarketSetRiskParams = /*#__PURE__*/ createUseWriteContract(
 )
 
 /**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link marketAbi}__ and `functionName` set to `"settleMatured"`
+ */
+export const useWriteMarketSettleMatured = /*#__PURE__*/ createUseWriteContract(
+  { abi: marketAbi, functionName: 'settleMatured' },
+)
+
+/**
  * Wraps __{@link useWriteContract}__ with `abi` set to __{@link marketAbi}__ and `functionName` set to `"supply"`
  */
 export const useWriteMarketSupply = /*#__PURE__*/ createUseWriteContract({
@@ -4112,6 +4455,15 @@ export const useWriteMarketWithdrawReserves =
   })
 
 /**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link marketAbi}__ and `functionName` set to `"withdrawSeizedCollateral"`
+ */
+export const useWriteMarketWithdrawSeizedCollateral =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: marketAbi,
+    functionName: 'withdrawSeizedCollateral',
+  })
+
+/**
  * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link marketAbi}__
  */
 export const useSimulateMarket = /*#__PURE__*/ createUseSimulateContract({
@@ -4134,6 +4486,15 @@ export const useSimulateMarketBorrow = /*#__PURE__*/ createUseSimulateContract({
   abi: marketAbi,
   functionName: 'borrow',
 })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link marketAbi}__ and `functionName` set to `"borrowFixed"`
+ */
+export const useSimulateMarketBorrowFixed =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: marketAbi,
+    functionName: 'borrowFixed',
+  })
 
 /**
  * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link marketAbi}__ and `functionName` set to `"borrowFor"`
@@ -4169,6 +4530,24 @@ export const useSimulateMarketRepay = /*#__PURE__*/ createUseSimulateContract({
   abi: marketAbi,
   functionName: 'repay',
 })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link marketAbi}__ and `functionName` set to `"repayFixed"`
+ */
+export const useSimulateMarketRepayFixed =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: marketAbi,
+    functionName: 'repayFixed',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link marketAbi}__ and `functionName` set to `"setFixedParams"`
+ */
+export const useSimulateMarketSetFixedParams =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: marketAbi,
+    functionName: 'setFixedParams',
+  })
 
 /**
  * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link marketAbi}__ and `functionName` set to `"setInterestRateModel"`
@@ -4225,6 +4604,15 @@ export const useSimulateMarketSetRiskParams =
   })
 
 /**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link marketAbi}__ and `functionName` set to `"settleMatured"`
+ */
+export const useSimulateMarketSettleMatured =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: marketAbi,
+    functionName: 'settleMatured',
+  })
+
+/**
  * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link marketAbi}__ and `functionName` set to `"supply"`
  */
 export const useSimulateMarketSupply = /*#__PURE__*/ createUseSimulateContract({
@@ -4269,6 +4657,15 @@ export const useSimulateMarketWithdrawReserves =
   })
 
 /**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link marketAbi}__ and `functionName` set to `"withdrawSeizedCollateral"`
+ */
+export const useSimulateMarketWithdrawSeizedCollateral =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: marketAbi,
+    functionName: 'withdrawSeizedCollateral',
+  })
+
+/**
  * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link marketAbi}__
  */
 export const useWatchMarketEvent = /*#__PURE__*/ createUseWatchContractEvent({
@@ -4282,6 +4679,42 @@ export const useWatchMarketBorrowedEvent =
   /*#__PURE__*/ createUseWatchContractEvent({
     abi: marketAbi,
     eventName: 'Borrowed',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link marketAbi}__ and `eventName` set to `"FixedBorrowed"`
+ */
+export const useWatchMarketFixedBorrowedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: marketAbi,
+    eventName: 'FixedBorrowed',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link marketAbi}__ and `eventName` set to `"FixedDefaulted"`
+ */
+export const useWatchMarketFixedDefaultedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: marketAbi,
+    eventName: 'FixedDefaulted',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link marketAbi}__ and `eventName` set to `"FixedParamsUpdated"`
+ */
+export const useWatchMarketFixedParamsUpdatedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: marketAbi,
+    eventName: 'FixedParamsUpdated',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link marketAbi}__ and `eventName` set to `"FixedRepaid"`
+ */
+export const useWatchMarketFixedRepaidEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: marketAbi,
+    eventName: 'FixedRepaid',
   })
 
 /**
@@ -4381,6 +4814,15 @@ export const useWatchMarketRiskParamsUpdatedEvent =
   /*#__PURE__*/ createUseWatchContractEvent({
     abi: marketAbi,
     eventName: 'RiskParamsUpdated',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link marketAbi}__ and `eventName` set to `"SeizedCollateralWithdrawn"`
+ */
+export const useWatchMarketSeizedCollateralWithdrawnEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: marketAbi,
+    eventName: 'SeizedCollateralWithdrawn',
   })
 
 /**

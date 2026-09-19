@@ -35,7 +35,7 @@ const STATE_CONFIG = {
     dot: "bg-[var(--color-error)]",
     bg: "bg-[var(--color-error-bg)]",
     text: "text-[var(--color-error)]",
-    message: "Market halted for a corporate action in progress. Only repayment is available -- interest stops accruing on all debt until it resolves.",
+    message: "Market halted for a corporate action in progress. Only repayment is available — interest stops accruing on all debt until it resolves.",
   },
   RESUMING: {
     dot: "bg-[var(--color-accent-blue)]",
@@ -137,7 +137,7 @@ export function HaltStatusBanner() {
                       {isBusy ? "Confirming..." : "Open settlement"}
                     </button>
                     <p className="mt-1.5 text-[11px] text-[var(--color-text-faint)]">
-                      Permissionless -- any wallet can do this, and it unlocks withdrawals for every lender at once, not just you.
+                      Permissionless — any wallet can do this, and it unlocks withdrawals for every lender at once, not just you.
                       Borrowing and liquidation stay paused.
                     </p>
                     {simulationBlocked && (
@@ -149,12 +149,12 @@ export function HaltStatusBanner() {
                       isConfirming={settleReceipt.isLoading}
                       isSuccess={settleReceipt.isSuccess}
                       error={settle.error}
-                      successLabel="Settlement open -- lenders can now withdraw their pro-rata share."
+                      successLabel="Settlement open — lenders can now withdraw their pro-rata share."
                     />
                   </>
                 ) : (
                   <p className="text-[11px] text-[var(--color-text-faint)]">
-                    Connect a wallet to open settlement. Any wallet can -- it unlocks withdrawals for every lender at once.
+                    Connect a wallet to open settlement. Any wallet can — it unlocks withdrawals for every lender at once.
                   </p>
                 )}
               </div>

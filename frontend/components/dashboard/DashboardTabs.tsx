@@ -6,11 +6,13 @@ import { ActionPanel } from "./ActionPanel";
 import { EarnPanel } from "./EarnPanel";
 import { LiquidatePanel } from "./LiquidatePanel";
 import { LeveragePanel } from "./LeveragePanel";
+import { FixedTermPanel } from "./FixedTermPanel";
 
-type Persona = "borrow" | "leverage" | "earn" | "liquidate";
+type Persona = "borrow" | "fixed" | "leverage" | "earn" | "liquidate";
 
 const PERSONAS: { key: Persona; label: string; hint: string }[] = [
-  { key: "borrow", label: "Borrow", hint: "Supply collateral, borrow USDG" },
+  { key: "borrow", label: "Borrow", hint: "Supply collateral, borrow USDG at a floating rate" },
+  { key: "fixed", label: "Fixed", hint: "Lock a rate and an end date, with no liquidation" },
   { key: "leverage", label: "Leverage", hint: "One-click loop into more wNVDAx exposure" },
   { key: "earn", label: "Earn", hint: "Deposit USDG, earn interest" },
   { key: "liquidate", label: "Liquidate", hint: "Repay an unsafe position for a discount" },
@@ -31,7 +33,7 @@ export function DashboardTabs() {
           <button
             key={p.key}
             onClick={() => setPersona(p.key)}
-            className={`flex-1 rounded-[var(--radius-pill)] px-3 py-2.5 text-sm font-medium transition-colors ${
+            className={`flex-1 whitespace-nowrap rounded-[var(--radius-pill)] px-2 py-2.5 text-sm font-medium transition-colors ${
               persona === p.key ? "bg-[var(--color-accent)] text-[var(--color-accent-fg)]" : "text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
             }`}
           >
@@ -48,6 +50,7 @@ export function DashboardTabs() {
             <ActionPanel />
           </div>
         )}
+        {persona === "fixed" && <FixedTermPanel />}
         {persona === "leverage" && <LeveragePanel />}
         {persona === "earn" && <EarnPanel />}
         {persona === "liquidate" && <LiquidatePanel />}

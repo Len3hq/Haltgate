@@ -56,11 +56,17 @@ Three details that matter more than they look:
 - `multiply()` — pick a target multiple and the loop runs itself until it gets there
 - Both halt-gated: you cannot lever up into a stock whose price is currently frozen
 
+**Fixed-term borrowing (no liquidation)**
+- Lock a rate and an end date: `borrowFixed()` quotes the total owed up front and it never changes
+- The position cannot be liquidated on price at any point during the term, however far the stock falls
+- Maturity replaces liquidation: repay in full and unlock the collateral, or anyone can call `settleMatured()` and the collateral passes to the protocol
+- Per-asset LTV caps, all set below the variable market's, because nothing closes these positions out early
+
 **Governance**
 - Three tiers: a permissionless keeper path for fast state transitions, a multisig for the oracle, and multisig-behind-timelock for risk parameters and contract ownership
 
 **Frontend**
-- Next.js dashboard with persona tabs (Borrow / Leverage / Earn / Liquidate), a live interest-rate curve, health factor and liquidation-price previews, and a status banner that explains the current halt state in plain language
+- Next.js dashboard with persona tabs (Borrow / Fixed / Leverage / Earn / Liquidate), a live interest-rate curve, health factor and liquidation-price previews, and a status banner that explains the current halt state in plain language
 - A self-serve faucet so anyone can get test collateral and try it
 
 ## Architecture
@@ -68,7 +74,7 @@ Three details that matter more than they look:
 | Contract | Role |
 |---|---|
 | [`HaltController`](src/core/HaltController.sol) | The five-state machine. Reads the oracle's pause flag; gates everything else. |
-| [`Market`](src/core/Market.sol) | Collateral, debt, LTV, liquidations, interest accrual. Never custodies lender cash. |
+| [`Market`](src/core/Market.sol) | Collateral, debt, LTV, liquidations, interest accrual, and fixed-term loans. Never custodies lender cash. |
 | [`LenderVault`](src/core/LenderVault.sol) | ERC-4626 vault holding the actual USDG. Halt-gated and settlement-aware redemptions. |
 | [`InterestRateModel`](src/core/InterestRateModel.sol) | Kinked utilization curve, per-second rates in WAD. |
 | [`SwapModule`](src/periphery/SwapModule.sol) | Oracle-priced wNVDAx↔USDG swap standing in for a DEX. Halt-gated. |
@@ -86,6 +92,14 @@ Three details that matter more than they look:
 
 **Governance can retune the settlement delay but never revoke it.** `settlementDelay` is bounded between 1 and 30 days. The floor stops governance setting it near zero and letting anyone stall an ordinary halt; the ceiling stops governance quietly restoring the indefinite lockup.
 
+**A defaulted fixed-term loan is settled without reading a price.** The plan originally said maturity would seize collateral "at a fixed conversion rate," which quietly reintroduces the oracle dependency the loan type exists to avoid: a frozen or stale price would block settlement exactly when it matters. `settleMatured()` instead claims the **whole** collateral and writes the debt off. That is deliberately blunt, and the borrower's protection is the low LTV, not a partial claim.
+
+**Fixed-term LTVs are set per asset and all sit below the variable cap.** A liquidatable position can be closed at the first sign of trouble; a fixed-term one has to survive the entire term untouched, so the same 50% cap would carry materially more risk. The caps are ordered by how far each asset realistically moves over a 30-day window: TSLA 30%, NVDA 35%, AAPL and MSFT 40%, SPY 45% (a diversified index, not a single name). All at 8%/yr simple interest.
+
+**Fixed-term interest is recognised at repayment, not accrued in advance.** Booking unearned interest into the share price would let a lender deposit late, redeem early, and collect yield on a loan that had not paid yet. `LenderVault.totalAssets()` counts outstanding fixed **principal** only; the interest lifts the share price at the moment it actually arrives.
+
+**Repayment works during a halt; new fixed loans do not.** Same rule the variable path already follows: `repayFixed()` only reduces risk, so it stays open in every state. `settleMatured()` is gated on `canLiquidate()`, which means a halt suspends defaults rather than letting the protocol claim collateral at a price nobody can verify.
+
 **Leverage looping stops early rather than reverting.** A market's max LTV caps achievable leverage at `1 / (1 - maxLTV)` — 2x here — which is an asymptote no finite number of loops reaches. Reverting on a near-miss would reject reasonable requests, so each pass is capped by live LTV headroom and available liquidity, and a caller-supplied `minFinalCollateral` floor is what actually protects against under-delivery.
 
 **Precision fidelity over precision.** `LeverageZap` computes borrow headroom using the same two-step rounding as `Market`, even though collapsing it would be more precise — because rounding even one wei above Market's own figure makes the next borrow revert and kills the loop. Matching the reference implementation beats being marginally more accurate than it.
@@ -94,33 +108,104 @@ Three details that matter more than they look:
 
 X Layer testnet (chain ID **1952**), explorer: [OKLink](https://www.oklink.com/x-layer-testnet)
 
+Five isolated markets are live. Each has its own collateral token, faucet, oracle, `HaltController`, `LenderVault`, `Market` and `SwapModule`, so halting one leaves the other four trading.
+
+**Shared across all markets**
+
 | Contract | Address |
 |---|---|
-| HaltController | `0x4C4AC6fd104Eb8CE9887a0e7Da757f86d08EE807` |
-| Market | `0x3ff6a0071655B1179C64f7114b175B141af91978` |
-| LenderVault | `0x0051f29d5E2BFC85542266a3B9894Da2db2aDf4d` |
-| InterestRateModel | `0x5F644BDF606cdb770c76bb01d6c3B83EA9F21845` |
-| SwapModule | `0x3797E011686e756EFfb8619B5faDCE261BA59680` |
-| LeverageZap | `0xfCB4A5C042fE54e04A7F9027992f06F40F4F55be` |
-| Oracle (mock) | `0x6092743d17D892c2C6033CF323783Bd7ec5952D4` |
-| wNVDAx (mock) | `0xe37088E75e24AbE5DE1ac6d188803405D9DEbb42` |
-| wNVDAx faucet | `0xBCFDa358dfdA7d8FFB53e2294846809c5DB8b57D` |
 | USDG (real testnet) | `0xF0863D7A29a55d0c4263c11bFac754312ff078DF` |
+| InterestRateModel | `0x5F644BDF606cdb770c76bb01d6c3B83EA9F21845` |
+| LeverageZap | `0xfCB4A5C042fE54e04A7F9027992f06F40F4F55be` |
 | Multisig | `0x46Af2FD4bF206321Bcd24A58F4497B2681C7716F` |
 | Timelock | `0x6e4591c9A44C28f29F570B19ab82781BA136305F` |
 
+**NVIDIA (wNVDAx)**
+
+| Contract | Address |
+|---|---|
+| Market | `0xA6dDbE7D72B47B1BAd95A236b35723c3dA72eCb5` |
+| LenderVault | `0xE5cdECCDfFFef563e4847af1311C2d693eDb2b93` |
+| HaltController | `0x4C4AC6fd104Eb8CE9887a0e7Da757f86d08EE807` |
+| Oracle (mock) | `0x6092743d17D892c2C6033CF323783Bd7ec5952D4` |
+| SwapModule | `0x3797E011686e756EFfb8619B5faDCE261BA59680` |
+| Collateral token | `0xe37088E75e24AbE5DE1ac6d188803405D9DEbb42` |
+| Faucet | `0xBCFDa358dfdA7d8FFB53e2294846809c5DB8b57D` |
+
+**Tesla (wTSLAx)**
+
+| Contract | Address |
+|---|---|
+| Market | `0xDcD5a4bfdC342Fdd4b17bd66B038efCC1e217070` |
+| LenderVault | `0xb4BC121B8CD5bD770def16fc14817e92a01D245f` |
+| HaltController | `0x0c69EF3ce2fBaCcadAd1d1dbE88C315dB491d649` |
+| Oracle (mock) | `0xa15Be4B64b08EEfcc85ad375AD391A167DEdF3E2` |
+| SwapModule | `0x10510b248972732b565b333d0Ccfa60493607C21` |
+| Collateral token | `0x3a18BcB208dCF1A5e65d8243E7337F8be3Bb2A13` |
+| Faucet | `0x2e167DBB68E47c17dc28b7DB6D8A00E896D55692` |
+
+**Apple (wAAPLx)**
+
+| Contract | Address |
+|---|---|
+| Market | `0xA7238C90Ed617cD783fb93A976C09d7BDE33b539` |
+| LenderVault | `0x6dC25DE624fd55f1ba34c6aAf06c1941Fa829174` |
+| HaltController | `0x1567e8F41DE5f8a67d3aF33214129AB310149C9A` |
+| Oracle (mock) | `0x365262ae56532C1594B42B6C944768E1aAF9caf6` |
+| SwapModule | `0xD1ff0651B9e4111cAaA5C33F3150DdE0451B8019` |
+| Collateral token | `0x457e9D75e6ACE368d12442616471EEe28D2Df19c` |
+| Faucet | `0x3a67fF41E0A14EcCFABff32fD4aEd1aD69a75ad1` |
+
+**Microsoft (wMSFTx)**
+
+| Contract | Address |
+|---|---|
+| Market | `0xC35893CE92e693941Ca8FF080f72E5622DE80461` |
+| LenderVault | `0x01131c26f9D885548D71aDc8Ff2Fa9cd6e02BC39` |
+| HaltController | `0x4FF088755DcB27F88C5515b17F3263CCB3f7E81c` |
+| Oracle (mock) | `0xe722cc0b1C5EadAa69a5deE603954AC71753cc19` |
+| SwapModule | `0xb4681F6945038E5a7Be56C0aFec01ee8A5c2B0c6` |
+| Collateral token | `0x4Add596629BddD11C29929A7726873A19A9E95D1` |
+| Faucet | `0x5bbE7FF75476bc86Db13292cB58d8C61a1524094` |
+
+**S&P 500 ETF (wSPYx)**
+
+| Contract | Address |
+|---|---|
+| Market | `0xAf9c884e6d6D8e82D004eC89D11a7FD7a3DDD3b0` |
+| LenderVault | `0xaC0269773bF362c4049150D9477BcE7F7c9382E6` |
+| HaltController | `0x78aDcB61837Dd42C1AED161F0B3Fd42C57A7ca69` |
+| Oracle (mock) | `0xD1405dba838e4d01Db8581441f47Cd57D49F7f8E` |
+| SwapModule | `0x4c26B0CB20a985049C7a9817aAFd93C6c93cADd2` |
+| Collateral token | `0xe28EfB0Eb1A3b17DD59f5E1c3281B0BC147cB313` |
+| Faucet | `0x2F515a5FF950037857cE9a5C62E677057Ef9fca4` |
+
 ### Current parameters
+
+Shared across all five markets:
 
 | Parameter | Value |
 |---|---|
-| Max LTV | 50% |
+| Max LTV (variable) | 50% |
 | Liquidation threshold | 55% |
 | Liquidation bonus | 5% |
 | Reserve factor | 10% |
+| Fixed-term rate | 8%/yr, simple |
+| Fixed-term length | 1 to 30 days |
 | Max oracle staleness | 24 hours |
-| Settlement delay | 7 days (bounded 1–30) |
+| Settlement delay | 7 days (bounded 1 to 30) |
 | Swap fee | 0.30% (capped at 5%) |
 | Max leverage | Contract cap 5x; ~2x actually reachable at a 50% LTV |
+
+Fixed-term LTV is set per asset, ordered by how far each realistically moves over a month:
+
+| Market | Fixed-term max LTV |
+|---|---|
+| Tesla | 30% |
+| NVIDIA | 35% |
+| Apple | 40% |
+| Microsoft | 40% |
+| S&P 500 ETF | 45% |
 
 ## Running it
 
@@ -128,7 +213,7 @@ Contracts ([Foundry](https://book.getfoundry.sh/)):
 
 ```bash
 forge build
-forge test          # 261 tests across 22 suites
+forge test          # 283 tests across 23 suites
 ```
 
 Frontend:
@@ -148,7 +233,7 @@ Redeploying? Update [`frontend/lib/contracts.ts`](frontend/lib/contracts.ts) and
 This project has been deliberate about not overstating what's real:
 
 - **wNVDAx is a mock.** No xStock — raw or wrapped — is confirmed to exist on X Layer *testnet*. The mock replicates the confirmed wrapped-xStock design: non-rebasing, with value accruing through an exchange rate. Real wNVDAx liquidity does exist on X Layer **mainnet**.
-- **The oracle is a mock** replicating Backed's confirmed `pauseOracle()` behavior. Whether a live Chainlink feed for wNVDAx is queryable on X Layer specifically was never confirmed, so the pause mechanism is reproduced faithfully rather than assumed.
+- **The oracle is a mock** replicating Backed's confirmed `pauseOracle()` behavior. It needs a price pushed at least once every 24 hours or borrowing stops protocol-wide on the staleness check, which is correct behaviour but does mean the testnet demo needs a keeper nudge if it sits idle for a day. Whether a live Chainlink feed for wNVDAx is queryable on X Layer specifically was never confirmed, so the pause mechanism is reproduced faithfully rather than assumed.
 - **USDG is real** testnet USDG (6 decimals, not 18 — confirmed against the deployed contract).
 - **Governance is configured for testnet convenience**: the multisig is 1-of-1 and the timelock delay is 10 minutes. Neither is a meaningful security boundary as deployed; both are real contracts wired correctly, just parameterized for a demo.
 - **Leverage here is directional.** Unlike correlated-asset looping (staking token against its underlying), collateral and debt here move independently, so leverage genuinely amplifies risk in both directions.
@@ -158,8 +243,8 @@ This project has been deliberate about not overstating what's real:
 
 Detailed plan and status in [`BUILD.md`](BUILD.md).
 
-- **Fixed-rate borrowing without liquidation** — a second loan type where maturity replaces price-triggered liquidation, inspired by Jupiter Offerbook's model but living inside the existing pooled market rather than fragmenting it into P2P escrows
-- **Multi-market** — a second and third xStock, which is also the only way to *demonstrate* that halts are per-asset: halting NVDA while TSLA keeps trading normally
+- **Converting seized collateral back to cash.** `settleMatured()` leaves the protocol holding collateral while the vault is owed USDG. `withdrawSeizedCollateral()` hands it to governance to sell; routing that through the `SwapModule` automatically is the obvious next step, and was left out on purpose because an automatic sale reads a price, which is the dependency this loan type exists to avoid.
+- **Per-asset variable LTVs.** The fixed-term caps are tiered per asset; the variable-rate cap is still a flat 50% everywhere, which means Tesla at 50% carries more risk than the S&P at 50%. Same reasoning, same numbers, not yet applied.
 - **CF Benchmarks corporate-action feed** — a real third-party CA feed exists with a documented methodology, a genuine upgrade path beyond a manually-toggled schedule
 
 ## Mainnet migration

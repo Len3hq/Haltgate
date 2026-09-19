@@ -27,6 +27,7 @@ import { PositionPanel } from "@/components/dashboard/PositionPanel";
 import { HaltSettlementPanel } from "@/components/dashboard/HaltSettlementPanel";
 import { AssetDetails } from "@/components/dashboard/AssetDetails";
 import { PriceChart } from "@/components/dashboard/PriceChart";
+import { InfoTip } from "@/components/dashboard/InfoTip";
 import { TestnetTools } from "@/components/dashboard/TestnetTools";
 
 const STATE_LABEL = ["OPEN", "HALTING", "HALTED", "RESUMING", "SETTLING"] as const;
@@ -39,10 +40,13 @@ const STATE_STYLE: Record<string, string> = {
   SETTLING: "bg-[var(--color-warning-bg)] text-[var(--color-warning)]",
 };
 
-function Stat({ label, value, unit, tone }: { label: string; value: string; unit?: string; tone?: string }) {
+function Stat({ label, value, unit, tone, tip }: { label: string; value: string; unit?: string; tone?: string; tip: string }) {
   return (
     <div className="rounded-[var(--radius-card)] border border-[var(--color-border)] bg-[var(--color-bg-card)] px-3 py-2.5">
-      <p className="text-[10px] uppercase tracking-wide text-[var(--color-text-faint)]">{label}</p>
+      <p className="text-[10px] uppercase tracking-wide text-[var(--color-text-faint)]">
+        {label}
+        <InfoTip text={tip} align="left" />
+      </p>
       <p className={`mt-1 font-[family-name:var(--font-display)] text-lg font-semibold ${tone ?? "text-[var(--color-text)]"}`}>
         {value}
         {unit && <span className="ml-1 text-[10px] font-normal text-[var(--color-text-muted)]">{unit}</span>}
@@ -128,15 +132,36 @@ function DetailBody({ marketKey }: { marketKey: string }) {
       </div>
 
       <div className="dash-fade-in dash-fade-in-1 mt-4 grid grid-cols-2 gap-2 sm:grid-cols-5">
-        <Stat label="Total Supplied" value={formatAmount(totalCollateral, WNVDAX_DECIMALS)} unit={config.symbol.replace("-MOCK", "")} />
-        <Stat label="Liquidity Available" value={formatAmount(cash, USDG_DECIMALS)} unit="USDG" />
-        <Stat label="Total Borrowed" value={formatAmount(totalBorrows, USDG_DECIMALS)} unit={`USDG · ${util}`} />
+        <Stat
+          label="Total Supplied"
+          value={formatAmount(totalCollateral, WNVDAX_DECIMALS)}
+          unit={config.symbol.replace("-MOCK", "")}
+          tip="All collateral deposited into this market by every borrower. It backs their loans and cannot be withdrawn below what their debt requires."
+        />
+        <Stat
+          label="Liquidity Available"
+          value={formatAmount(cash, USDG_DECIMALS)}
+          unit="USDG"
+          tip="USDG sitting in the vault right now, free to be borrowed or withdrawn. The rest is already out on loan. This is usually what limits a borrow or a leverage loop before the LTV ceiling does."
+        />
+        <Stat
+          label="Total Borrowed"
+          value={formatAmount(totalBorrows, USDG_DECIMALS)}
+          unit={`USDG · ${util}`}
+          tip="USDG currently lent out, interest included. The percentage is utilization: borrowed divided by the pool total. Higher utilization pushes both rates up."
+        />
         <Stat
           label="Supply APR"
-          value={halted ? "--" : formatApr(supplyRate)}
+          value={halted ? "—" : formatApr(supplyRate)}
           tone="text-[var(--color-success)]"
+          tip="What lenders earn on deposited USDG, before compounding. It rises with utilization and is shown as a dash while halted, because interest stops accruing entirely."
         />
-        <Stat label="Borrow APR" value={halted ? "--" : formatApr(borrowRate)} tone="text-[var(--color-accent-blue)]" />
+        <Stat
+          label="Borrow APR"
+          value={halted ? "—" : formatApr(borrowRate)}
+          tone="text-[var(--color-accent-blue)]"
+          tip="What borrowers pay on outstanding debt, before compounding. It rises steeply once utilization passes the kink, to protect lenders' ability to withdraw."
+        />
       </div>
 
       <div className="dash-fade-in dash-fade-in-2 mt-5 flex gap-1 border-b border-[var(--color-border-subtle)]">

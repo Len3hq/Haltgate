@@ -11,6 +11,7 @@ import {
 } from "@/lib/generated";
 import { useMarketContracts } from "@/lib/market-context";
 import { useNow } from "@/lib/use-now";
+import { InfoTip } from "@/components/dashboard/InfoTip";
 
 const STATE_LABEL = ["OPEN", "HALTING", "HALTED", "RESUMING", "SETTLING"] as const;
 
@@ -21,7 +22,7 @@ function duration(seconds: number): string {
   return `${Math.floor(seconds / 86400)}d`;
 }
 
-function Row({ label, allowed, note }: { label: string; allowed: boolean | undefined; note?: string }) {
+function Row({ label, allowed, note, tip }: { label: string; allowed: boolean | undefined; note?: string; tip: string }) {
   const tone =
     allowed === undefined
       ? "text-[var(--color-text-faint)]"
@@ -33,9 +34,10 @@ function Row({ label, allowed, note }: { label: string; allowed: boolean | undef
       <span className="text-xs text-[var(--color-text-muted)]">
         {label}
         {note && <span className="ml-1.5 text-[10px] text-[var(--color-text-faint)]">{note}</span>}
+        <InfoTip text={tip} align="left" />
       </span>
       <span className={`text-xs font-medium ${tone}`}>
-        {allowed === undefined ? "--" : allowed ? "Allowed" : "Blocked"}
+        {allowed === undefined ? "—" : allowed ? "Allowed" : "Blocked"}
       </span>
     </div>
   );
@@ -69,13 +71,28 @@ export function HaltSettlementPanel() {
       </div>
 
       <div className="mt-3 divide-y divide-[var(--color-border-subtle)]">
-        <Row label="Supply &amp; borrow" allowed={canSupplyOrBorrow} />
-        <Row label="Liquidation" allowed={canLiquidate} note="off through RESUMING too" />
-        <Row label="Repay" allowed={true} note="always -- only reduces risk" />
+        <Row
+          label="Supply &amp; borrow"
+          allowed={canSupplyOrBorrow}
+          tip="Taking on new exposure is only allowed while the price feed is trustworthy. A halt blocks it until the corporate action resolves."
+        />
+        <Row
+          label="Liquidation"
+          allowed={canLiquidate}
+          note="stays off until fully reopened"
+          tip="Liquidations stay disabled through RESUMING, not just HALTED. The moment right after a price unfreezes is the most dangerous time to liquidate, because a position can look underwater for a purely mechanical reason like a split."
+        />
+        <Row
+          label="Repay"
+          allowed={true}
+          note="never blocked"
+          tip="Repaying is allowed in every state, halts included. Paying down debt only shrinks the borrower's risk and returns cash to lenders, so there is never a reason to block it."
+        />
         <Row
           label="Interest accrual"
           allowed={interestFrozen === undefined ? undefined : !interestFrozen}
           note={interestFrozen ? "frozen" : undefined}
+          tip="Debt stops growing while the market is halted. Charging interest when liquidation is disabled and the price is frozen would push borrowers toward a liquidation they cannot defend against."
         />
       </div>
 
@@ -92,7 +109,7 @@ export function HaltSettlementPanel() {
             {untilSettlement === null
               ? settlementDelay !== undefined
                 ? `after ${duration(Number(settlementDelay))}`
-                : "--"
+                : "—"
               : untilSettlement <= 0
                 ? "Available now"
                 : `in ${duration(untilSettlement)}`}

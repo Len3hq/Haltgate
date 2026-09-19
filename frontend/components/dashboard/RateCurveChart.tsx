@@ -12,10 +12,11 @@ import {
   useReadInterestRateModelKink,
 } from "@/lib/generated";
 import { useMarketContracts } from "@/lib/market-context";
+import { InfoTip } from "@/components/dashboard/InfoTip";
 
 
 const SECONDS_PER_YEAR = 31_536_000;
-const SAMPLES = 41; // resolution for the drawn path only -- exact points are computed in closed form, not interpolated
+const SAMPLES = 41; // resolution for the drawn path only — exact points are computed in closed form, not interpolated
 const VIEW_W = 340;
 const VIEW_H = 168;
 const PAD_L = 30;
@@ -81,7 +82,13 @@ export function RateCurveChart() {
       <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-4 py-3">
         <div>
           <p className="text-xs uppercase tracking-wide text-[var(--color-text-faint)]">Rate Curve</p>
-          <p className="mt-0.5 text-[11px] text-[var(--color-text-muted)]">How rates move with pool utilization</p>
+          <p className="mt-0.5 text-[11px] text-[var(--color-text-muted)]">
+            How rates move with pool utilization
+            <InfoTip
+              align="left"
+              text="Rates climb gently until borrowing passes the kink, then sharply. That steep section pulls utilization back down so lenders can still withdraw."
+            />
+          </p>
         </div>
         <div className="flex items-center gap-3">
           {ready && currentUtil !== undefined && (
@@ -240,7 +247,7 @@ function RateCurveInner({
       </svg>
 
       <p className="mt-2 text-[11px] leading-snug text-[var(--color-text-muted)]">
-        Rates hold steady until utilization crosses the kink, then climb sharply -- that jump pulls liquidity back toward safe levels for
+        Rates hold steady until utilization crosses the kink, then climb sharply — that jump pulls liquidity back toward safe levels for
         lenders instead of letting the pool run dry.
       </p>
     </div>

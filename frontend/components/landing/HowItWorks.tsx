@@ -4,7 +4,7 @@ const STEPS = [
   {
     step: "01",
     title: "Supply xStocks collateral",
-    body: "Deposit wrapped, tokenized stock (wNVDAx) as collateral. Value accrues through the wrapper's own exchange rate -- your balance doesn't rebase under you.",
+    body: "Deposit wrapped, tokenized stock (wNVDAx) as collateral. Value accrues through the wrapper's own exchange rate — your balance doesn't rebase under you.",
   },
   {
     step: "02",
@@ -14,7 +14,7 @@ const STEPS = [
   {
     step: "03",
     title: "Trading halts, HaltGate freezes with it",
-    body: "The instant the exchange halts the underlying stock and the price oracle pauses, new borrowing and all liquidations stop market-wide -- automatically.",
+    body: "The instant the exchange halts the underlying stock and the price oracle pauses, new borrowing and all liquidations stop market-wide — automatically.",
   },
   {
     step: "04",

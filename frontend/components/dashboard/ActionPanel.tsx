@@ -206,7 +206,7 @@ export function ActionPanel() {
 
       {actionDisabledByHalt && (
         <p className="mt-3 rounded-[var(--radius-card)] bg-[var(--color-warning-bg)] px-3 py-2 text-xs text-[var(--color-warning)]">
-          Market isn&apos;t open for {tab === "supply" ? "supply" : "borrowing"} right now -- see the status banner above.
+          Market isn&apos;t open for {tab === "supply" ? "supply" : "borrowing"} right now — see the status banner above.
         </p>
       )}
 
@@ -217,7 +217,7 @@ export function ActionPanel() {
       )}
       {insufficientLiquidity && (
         <p className="mt-1 rounded-[var(--radius-card)] bg-[var(--color-warning-bg)] px-3 py-2 text-xs text-[var(--color-warning)]">
-          The market only has {formatAmount(availableLiquidity, USDG_DECIMALS)} USDG available right now -- lower the amount.
+          The market only has {formatAmount(availableLiquidity, USDG_DECIMALS)} USDG available right now — lower the amount.
         </p>
       )}
       {tab === "withdraw" && (
@@ -261,7 +261,7 @@ export function ActionPanel() {
             isSuccess={approveReceipt.isSuccess}
             error={approve.error}
             pendingLabel="Confirm approval in wallet..."
-            successLabel="Approved -- you can now submit the transaction below."
+            successLabel="Approved — you can now submit the transaction below."
           />
         </>
       ) : (

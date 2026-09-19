@@ -70,6 +70,36 @@ contract Market is Ownable, ReentrancyGuard {
     mapping(address => Position) public positions;
     uint256 public totalCollateral;
 
+    /// @notice A fixed-rate, fixed-term loan. Deliberately holds its own
+    /// collateral rather than sharing the variable position's, so liquidation
+    /// can never seize collateral backing a loan that by design cannot be
+    /// liquidated.
+    struct FixedLoan {
+        uint256 collateral; // locked for the term, collateralToken's decimals
+        uint256 principal; // debtToken's decimals
+        uint256 owed; // principal + interest, fixed at origination
+        uint256 maturity; // unix seconds
+    }
+
+    mapping(address => FixedLoan) public fixedLoans;
+    /// @notice Sum of outstanding fixed principal. Interest is recognised at
+    /// repayment rather than accrued, so the vault never marks up unearned yield.
+    uint256 public totalFixedPrincipal;
+    /// @notice Collateral claimed from defaulted loans, awaiting conversion to
+    /// debt token by governance.
+    uint256 public seizedCollateral;
+
+    /// @notice LTV ceiling for fixed-term loans. Lower than maxLTV because
+    /// nothing can liquidate these mid-term -- the opening cushion is the only
+    /// protection, so it has to survive the whole term.
+    uint256 public fixedMaxLTV;
+    /// @notice Fixed borrow rate, WAD per year. Priced above the variable curve:
+    /// the borrower is buying rate certainty and freedom from liquidation.
+    uint256 public fixedRatePerYear;
+
+    uint256 public constant MIN_FIXED_TERM = 1 days;
+    uint256 public constant MAX_FIXED_TERM = 30 days;
+
     /// @notice owner => operator => approved. Like an ERC20 approve: revocable,
     /// and grantable only by the position owner over themselves. Exists so a
     /// leverage loop credits the user's position rather than the zap's own.
@@ -88,6 +118,11 @@ contract Market is Ownable, ReentrancyGuard {
     event ReservesWithdrawn(address indexed to, uint256 amount);
     event InterestAccrued(uint256 interestAccumulated, uint256 reservesAdded, uint256 borrowIndex, uint256 totalBorrows);
     event OperatorSet(address indexed owner, address indexed operator, bool approved);
+    event FixedBorrowed(address indexed user, uint256 collateral, uint256 principal, uint256 owed, uint256 maturity);
+    event FixedRepaid(address indexed user, uint256 owed, uint256 collateralReturned);
+    event FixedDefaulted(address indexed user, address indexed by, uint256 principal, uint256 collateralSeized);
+    event FixedParamsUpdated(uint256 fixedMaxLTV, uint256 fixedRatePerYear);
+    event SeizedCollateralWithdrawn(address indexed to, uint256 amount);
 
     error MarketHalted();
     error NotAuthorized();
@@ -103,6 +138,11 @@ contract Market is Ownable, ReentrancyGuard {
     error UnsupportedDecimals();
     error OraclePausedDirectly();
     error StaleOracle(uint256 lastUpdated, uint256 maxStaleness);
+    error InvalidTerm();
+    error LoanAlreadyOpen();
+    error NoFixedLoan();
+    error NotMatured(uint256 maturity);
+    error InvalidFixedParams();
 
     modifier whenSupplyOrBorrowAllowed() {
         if (!haltController.canSupplyOrBorrow()) revert MarketHalted();
@@ -314,6 +354,116 @@ contract Market is Ownable, ReentrancyGuard {
         // custodies debt-token cash itself, even momentarily.
         debtToken.safeTransferFrom(msg.sender, address(lenderVault), repayAmount);
         emit Repaid(msg.sender, repayAmount);
+    }
+
+    // --- Fixed-rate, fixed-term loans ------------------------------------
+    //
+    // A deliberately different risk model from the variable market above:
+    // the rate is locked at origination and the position can never be
+    // liquidated on price, however far the collateral falls. Maturity
+    // replaces liquidation as the mechanism that resolves the loan.
+    //
+    // That removes the oracle from the loan's whole lifecycle except at
+    // origination, which is the point -- but it also means the opening
+    // cushion is the lender's only protection for the full term, so
+    // fixedMaxLTV is set well below maxLTV.
+
+    function setFixedParams(uint256 newFixedMaxLTV, uint256 newFixedRatePerYear) external onlyOwner {
+        // Never looser than the liquidatable market: a loan nothing can close
+        // out must not be allowed to borrow more per unit of collateral.
+        if (newFixedMaxLTV == 0 || newFixedMaxLTV > maxLTV) revert InvalidFixedParams();
+        fixedMaxLTV = newFixedMaxLTV;
+        fixedRatePerYear = newFixedRatePerYear;
+        emit FixedParamsUpdated(newFixedMaxLTV, newFixedRatePerYear);
+    }
+
+    /// @notice Total repayable at maturity for `principal` over `term`. Simple
+    /// interest, computed once and then immutable -- that fixity is the product.
+    function quoteFixed(uint256 principal, uint256 term) public view returns (uint256 owed) {
+        return principal + (principal * fixedRatePerYear * term) / (WAD * 365 days);
+    }
+
+    /// @notice Open a fixed-term loan against its own dedicated collateral.
+    /// One loan per address at a time, which keeps maturity unambiguous.
+    function borrowFixed(uint256 collateralAmount, uint256 borrowAmount, uint256 term)
+        external
+        nonReentrant
+        whenSupplyOrBorrowAllowed
+    {
+        if (collateralAmount == 0 || borrowAmount == 0) revert ZeroAmount();
+        if (term < MIN_FIXED_TERM || term > MAX_FIXED_TERM) revert InvalidTerm();
+        if (fixedLoans[msg.sender].principal != 0) revert LoanAlreadyOpen();
+        if (fixedMaxLTV == 0) revert InvalidFixedParams();
+
+        _requireFreshPrice();
+        if (borrowAmount > debtToken.balanceOf(address(lenderVault))) revert InsufficientLiquidity();
+
+        uint256 maxBorrowWad = (_collateralValueWad(collateralAmount) * fixedMaxLTV) / WAD;
+        if (_toWad(borrowAmount, debtDecimals) > maxBorrowWad) revert ExceedsMaxLTV();
+
+        uint256 owed = quoteFixed(borrowAmount, term);
+        fixedLoans[msg.sender] =
+            FixedLoan({collateral: collateralAmount, principal: borrowAmount, owed: owed, maturity: block.timestamp + term});
+        totalFixedPrincipal += borrowAmount;
+
+        collateralToken.safeTransferFrom(msg.sender, address(this), collateralAmount);
+        lenderVault.borrowCash(msg.sender, borrowAmount);
+        emit FixedBorrowed(msg.sender, collateralAmount, borrowAmount, owed, block.timestamp + term);
+    }
+
+    /// @notice Repay in full and unlock the collateral. Allowed in every state,
+    /// halts included -- same reasoning as repay(): it only reduces risk.
+    function repayFixed() external nonReentrant {
+        FixedLoan memory loan = fixedLoans[msg.sender];
+        if (loan.principal == 0) revert NoFixedLoan();
+
+        delete fixedLoans[msg.sender];
+        totalFixedPrincipal -= loan.principal;
+
+        // Principal returns to the vault as cash; the interest on top lifts the
+        // share price at that moment rather than having been accrued in advance.
+        debtToken.safeTransferFrom(msg.sender, address(lenderVault), loan.owed);
+        collateralToken.safeTransfer(msg.sender, loan.collateral);
+        emit FixedRepaid(msg.sender, loan.owed, loan.collateral);
+    }
+
+    /// @notice After maturity, anyone can close out an unpaid loan by claiming
+    /// its collateral outright. No price is read and no partial seizure is
+    /// computed: pricing the seizure would put the oracle back in the middle of
+    /// the one product designed not to need it. The conservative fixedMaxLTV is
+    /// what makes claiming the whole position fair to both sides.
+    ///
+    /// Gated on canLiquidate() for the same reason liquidation is: a borrower
+    /// should never lose collateral during a window when the market itself is
+    /// halted. Repayment stays open throughout, so they are never shut out.
+    function settleMatured(address user) external nonReentrant {
+        if (!haltController.canLiquidate()) revert MarketHalted();
+        FixedLoan memory loan = fixedLoans[user];
+        if (loan.principal == 0) revert NoFixedLoan();
+        if (block.timestamp < loan.maturity) revert NotMatured(loan.maturity);
+
+        delete fixedLoans[user];
+        totalFixedPrincipal -= loan.principal;
+        seizedCollateral += loan.collateral;
+
+        emit FixedDefaulted(user, msg.sender, loan.principal, loan.collateral);
+    }
+
+    /// @notice Moves claimed collateral out for conversion back into debt token.
+    /// Seizure yields collateral while the vault is owed cash, so closing that
+    /// gap is a governance step rather than something settlement can do inline.
+    function withdrawSeizedCollateral(address to, uint256 amount) external onlyOwner nonReentrant {
+        if (to == address(0)) revert ZeroAddress();
+        if (amount > seizedCollateral) revert InsufficientCollateral();
+        seizedCollateral -= amount;
+        collateralToken.safeTransfer(to, amount);
+        emit SeizedCollateralWithdrawn(to, amount);
+    }
+
+    /// @return Whether the loan is past maturity and unpaid.
+    function isFixedDefaulted(address user) external view returns (bool) {
+        FixedLoan memory loan = fixedLoans[user];
+        return loan.principal != 0 && block.timestamp >= loan.maturity;
     }
 
     /// @notice Repays up to CLOSE_FACTOR of an undercollateralized position's

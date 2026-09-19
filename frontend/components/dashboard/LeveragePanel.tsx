@@ -20,6 +20,7 @@ import { USDG_DECIMALS, WNVDAX_DECIMALS } from "@/lib/contracts";
 import { formatAmount, formatBps, formatPrice } from "@/lib/format";
 import { getErrorMessage } from "@/lib/errors";
 import { TxStatus } from "@/components/dashboard/TxStatus";
+import { InfoTip } from "@/components/dashboard/InfoTip";
 import { useMarketContracts } from "@/lib/market-context";
 
 const WAD = 10n ** 18n;
@@ -250,7 +251,7 @@ export function LeveragePanel() {
   if (!isConnected) return null;
 
   const isBusy = enableOp.isPending || enableOpReceipt.isLoading || approve.isPending || approveReceipt.isLoading || leverage.isPending || leverageReceipt.isLoading;
-  const hfDisplay = !preview ? "--" : preview.projectedHealthFactor === MAX_UINT256 ? "∞" : (Number(preview.projectedHealthFactor) / 1e18).toFixed(2);
+  const hfDisplay = !preview ? "—" : preview.projectedHealthFactor === MAX_UINT256 ? "∞" : (Number(preview.projectedHealthFactor) / 1e18).toFixed(2);
 
   // How much room the price has before liquidation, not the multiple itself,
   // is what decides whether this position is comfortable to hold -- so the
@@ -267,12 +268,12 @@ export function LeveragePanel() {
     <div className="rounded-[var(--radius-card)] border border-[var(--color-border)] bg-[var(--color-bg-card)] p-4">
       <p className="text-xs uppercase tracking-wide text-[var(--color-text-faint)]">Leverage</p>
       <p className="mt-1 text-xs text-[var(--color-text-muted)]">
-        Pick a multiple and the loop runs itself -- borrow, swap into more wNVDAx, supply, repeat -- in one confirmation.
+        Pick a multiple and the loop runs itself — borrow, swap into more wNVDAx, supply, repeat — in one confirmation.
       </p>
 
       {canSupplyOrBorrow === false && (
         <p className="mt-3 rounded-[var(--radius-card)] bg-[var(--color-warning-bg)] px-3 py-2 text-xs text-[var(--color-warning)]">
-          Market isn&apos;t open for leverage right now -- see the status banner above.
+          Market isn&apos;t open for leverage right now — see the status banner above.
         </p>
       )}
 
@@ -294,7 +295,7 @@ export function LeveragePanel() {
             isConfirming={enableOpReceipt.isLoading}
             isSuccess={enableOpReceipt.isSuccess}
             error={enableOp.error}
-            successLabel="Enabled -- set an amount below."
+            successLabel="Enabled — set an amount below."
           />
         </div>
       ) : (
@@ -318,7 +319,13 @@ export function LeveragePanel() {
           />
 
           <div className="mt-4 flex items-center justify-between text-xs text-[var(--color-text-muted)]">
-            <span>Target leverage</span>
+            <span>
+              Target leverage
+              <InfoTip
+                align="left"
+                text="How much total exposure you end up with versus what you put in. 2x means holding twice your own capital's worth, with the other half borrowed. The ceiling comes from this market's max LTV."
+              />
+            </span>
             <span className="font-[family-name:var(--font-display)] font-semibold text-[var(--color-text)]">
               {effectiveTarget.toFixed(2)}x
             </span>
@@ -339,7 +346,7 @@ export function LeveragePanel() {
 
           {preview?.liquidityCapped && (
             <p className="mt-3 rounded-[var(--radius-card)] bg-[var(--color-warning-bg)] px-3 py-2 text-xs text-[var(--color-warning)]">
-              Not enough USDG is liquid right now to reach {effectiveTarget.toFixed(2)}x -- the loop will stop early at roughly{" "}
+              Not enough USDG is liquid right now to reach {effectiveTarget.toFixed(2)}x — the loop will stop early at roughly{" "}
               {formatAmount(preview.projectedCollateral, WNVDAX_DECIMALS)} wNVDAx instead of reverting.
             </p>
           )}
@@ -361,7 +368,10 @@ export function LeveragePanel() {
                 </p>
               </div>
               <div>
-                <p className="text-[var(--color-text-faint)]">Health factor</p>
+                <p className="text-[var(--color-text-faint)]">
+                  Health factor
+                  <InfoTip text="How much cushion the position has. Above 1.00 is safe; at 1.00 it becomes liquidatable. Higher is safer." />
+                </p>
                 <p className="mt-0.5 font-[family-name:var(--font-display)] font-semibold text-[var(--color-text)]">
                   {hfDisplay}{" "}
                   <span className="text-[10px] font-normal text-[var(--color-text-muted)]">liq. at 1.00</span>
@@ -375,7 +385,13 @@ export function LeveragePanel() {
               className="mt-2 flex items-center justify-between rounded-[var(--radius-card)] px-3 py-2.5 text-xs"
               style={{ background: liqTone.bg, color: liqTone.text }}
             >
-              <span>Liquidation price</span>
+              <span>
+                Liquidation price
+                <InfoTip
+                  align="left"
+                  text="The price this stock would have to fall to before the position can be liquidated. For a leveraged bet this matters more than the health factor: it says how far the market can move against you."
+                />
+              </span>
               <span className="font-[family-name:var(--font-display)] font-semibold">
                 ${formatPrice(preview.liquidationPrice)}
                 {preview.dropToLiquidationPct !== null && (
@@ -403,7 +419,7 @@ export function LeveragePanel() {
                 isSuccess={approveReceipt.isSuccess}
                 error={approve.error}
                 pendingLabel="Confirm approval in wallet..."
-                successLabel="Approved -- you can now leverage below."
+                successLabel="Approved — you can now leverage below."
               />
             </>
           ) : (

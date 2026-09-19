@@ -8,7 +8,7 @@ import { BaseError, ContractFunctionRevertedError } from "viem";
 // find it and looks it up here instead.
 const ERROR_MESSAGES: Record<string, string> = {
   // Market.sol
-  MarketHalted: "The market isn't open right now -- see the status banner above.",
+  MarketHalted: "The market isn't open right now — see the status banner above.",
   ExceedsMaxLTV: "That amount would exceed the maximum loan-to-value ratio.",
   InsufficientCollateral: "You don't have enough collateral supplied for this.",
   InsufficientLiquidity: "The vault doesn't have enough liquid USDG for this right now.",
@@ -16,7 +16,7 @@ const ERROR_MESSAGES: Record<string, string> = {
   InvalidReserveFactor: "That reserve factor is above the allowed maximum.",
   ZeroAmount: "Enter an amount greater than zero.",
   ZeroAddress: "That address can't be the zero address.",
-  NotLiquidatable: "This position isn't liquidatable -- its health factor is still safe.",
+  NotLiquidatable: "This position isn't liquidatable — its health factor is still safe.",
   StaleOracle: "The price feed is stale. Try again shortly.",
   OraclePausedDirectly: "The price feed is paused.",
   NotAuthorized: "You haven't authorized this action on your account yet.",
@@ -25,10 +25,10 @@ const ERROR_MESSAGES: Record<string, string> = {
   InsufficientInventory: "The swap doesn't have enough of that token available right now.",
   // LeverageZap.sol
   MismatchedSwapModule: "That swap contract doesn't match this market's collateral/debt pair.",
-  SlippageTooHigh: "The swap output was lower than the minimum you allowed -- try again.",
+  SlippageTooHigh: "The swap output was lower than the minimum you allowed — try again.",
   // HaltController.sol
   WrongState: "The market isn't in the right state for that action right now.",
-  NotSettleable: "This market isn't eligible for settlement -- it's either operating normally or already settling.",
+  NotSettleable: "This market isn't eligible for settlement — it's either operating normally or already settling.",
   HaltTooRecent: "The halt hasn't run long enough yet for settlement to be forced.",
   InvalidSettlementDelay: "That settlement delay is outside the allowed range.",
   // MockPausableOracle.sol
@@ -45,8 +45,8 @@ const ERROR_MESSAGES: Record<string, string> = {
   // OpenZeppelin ERC4626 (LenderVault deposit/withdraw limits)
   ERC4626ExceededMaxDeposit: "That's more than the vault currently accepts.",
   ERC4626ExceededMaxMint: "That's more shares than the vault currently accepts.",
-  ERC4626ExceededMaxWithdraw: "That's more than is currently liquid in the vault -- the rest is out on loan.",
-  ERC4626ExceededMaxRedeem: "That's more shares than you can currently redeem -- part of the vault's cash is out on loan.",
+  ERC4626ExceededMaxWithdraw: "That's more than is currently liquid in the vault — the rest is out on loan.",
+  ERC4626ExceededMaxRedeem: "That's more shares than you can currently redeem — part of the vault's cash is out on loan.",
 };
 
 export function getErrorMessage(error: Error | null | undefined): string | undefined {

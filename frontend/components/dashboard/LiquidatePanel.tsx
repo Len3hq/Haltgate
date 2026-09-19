@@ -9,9 +9,13 @@ import {
   useReadMarketIsLiquidatable,
   useReadMarketHealthFactor,
   useReadHaltControllerCanLiquidate,
+  useReadMarketIsFixedDefaulted,
+  useReadMarketFixedLoans,
   useWriteMarketLiquidate,
+  useWriteMarketSettleMatured,
 } from "@/lib/generated";
-import { USDG_DECIMALS } from "@/lib/contracts";
+import { USDG_DECIMALS, WNVDAX_DECIMALS } from "@/lib/contracts";
+import { formatAmount } from "@/lib/format";
 import { getErrorMessage } from "@/lib/errors";
 import { TxStatus } from "@/components/dashboard/TxStatus";
 import { useMarketContracts } from "@/lib/market-context";
@@ -40,6 +44,17 @@ export function LiquidatePanel() {
     address: CONTRACTS.market,
     args: targetAddress ? [targetAddress] : undefined,
     query: { enabled: !!targetAddress, refetchInterval: 6_000 },
+  });
+
+  const { data: isFixedDefaulted } = useReadMarketIsFixedDefaulted({
+    address: CONTRACTS.market,
+    args: targetAddress ? [targetAddress] : undefined,
+    query: { enabled: !!targetAddress, refetchInterval: 8_000 },
+  });
+  const { data: fixedLoan } = useReadMarketFixedLoans({
+    address: CONTRACTS.market,
+    args: targetAddress ? [targetAddress] : undefined,
+    query: { enabled: !!targetAddress, refetchInterval: 8_000 },
   });
 
   const { data: allowance, refetch: refetchAllowance } = useReadContract({
@@ -82,16 +97,18 @@ export function LiquidatePanel() {
   const approveReceipt = useWaitForTransactionReceipt({ hash: approve.data });
   const liquidate = useWriteMarketLiquidate();
   const liquidateReceipt = useWaitForTransactionReceipt({ hash: liquidate.data });
+  const settle = useWriteMarketSettleMatured();
+  const settleReceipt = useWaitForTransactionReceipt({ hash: settle.data });
 
   useEffect(() => {
     if (approveReceipt.isSuccess) refetchAllowance();
   }, [approveReceipt.isSuccess, refetchAllowance]);
   useEffect(() => {
-    if (liquidateReceipt.isSuccess) {
+    if (liquidateReceipt.isSuccess || settleReceipt.isSuccess) {
       setAmount("");
       queryClient.invalidateQueries();
     }
-  }, [liquidateReceipt.isSuccess, queryClient]);
+  }, [liquidateReceipt.isSuccess, settleReceipt.isSuccess, queryClient]);
 
   function handleApprove() {
     approve.writeContract({ address: CONTRACTS.usdg, abi: erc20Abi, functionName: "approve", args: [CONTRACTS.market, parsedAmount] });
@@ -102,14 +119,14 @@ export function LiquidatePanel() {
     liquidate.writeContract({ address: CONTRACTS.market, args: [targetAddress, parsedAmount] });
   }
 
-  const hfDisplay = healthFactor === undefined ? "--" : healthFactor === MAX_UINT256 ? "No debt" : (Number(healthFactor) / 1e18).toFixed(2);
+  const hfDisplay = healthFactor === undefined ? "—" : healthFactor === MAX_UINT256 ? "No debt" : (Number(healthFactor) / 1e18).toFixed(2);
   const isBusy = approve.isPending || approveReceipt.isLoading || liquidate.isPending || liquidateReceipt.isLoading;
 
   return (
     <div className="rounded-[var(--radius-card)] border border-[var(--color-border)] bg-[var(--color-bg-card)] p-4">
       <p className="text-xs uppercase tracking-wide text-[var(--color-text-faint)]">Liquidate a Position</p>
       <p className="mt-1 text-xs text-[var(--color-text-muted)]">
-        Anyone can liquidate an undercollateralized position -- repay some of its debt, receive its collateral at a discount.
+        Anyone can liquidate an undercollateralized position — repay some of its debt, receive its collateral at a discount.
       </p>
 
       <input
@@ -131,7 +148,7 @@ export function LiquidatePanel() {
 
       {canLiquidate === false && (
         <p className="mt-2 rounded-[var(--radius-card)] bg-[var(--color-warning-bg)] px-3 py-2 text-xs text-[var(--color-warning)]">
-          Liquidations are paused right now -- see the status banner above.
+          Liquidations are paused right now — see the status banner above.
         </p>
       )}
 
@@ -161,7 +178,7 @@ export function LiquidatePanel() {
                 isSuccess={approveReceipt.isSuccess}
                 error={approve.error}
                 pendingLabel="Confirm approval in wallet..."
-                successLabel="Approved -- you can now liquidate below."
+                successLabel="Approved — you can now liquidate below."
               />
             </>
           ) : (
@@ -188,6 +205,32 @@ export function LiquidatePanel() {
               />
             </>
           )}
+        </div>
+      )}
+
+      {targetAddress && isFixedDefaulted && fixedLoan && (
+        <div className="mt-4 border-t border-[var(--color-border)] pt-4">
+          <p className="text-xs uppercase tracking-wide text-[var(--color-text-faint)]">Matured Fixed-Term Loan</p>
+          <p className="mt-1 text-xs text-[var(--color-text-muted)]">
+            This address has a fixed-term loan past its end date. Fixed-term loans are never liquidated on price, so settling
+            closes it out instead: the {formatAmount(fixedLoan[0], WNVDAX_DECIMALS)} collateral goes to the protocol and the
+            debt is written off. No price is read and no repayment is needed.
+          </p>
+          <button
+            onClick={() => settle.writeContract({ address: CONTRACTS.market, args: [targetAddress] })}
+            disabled={isBusy || settle.isPending || settleReceipt.isLoading || canLiquidate === false}
+            className="mt-3 w-full rounded-[var(--radius-pill)] bg-[var(--color-accent)] py-2.5 text-sm font-semibold text-[var(--color-accent-fg)] disabled:opacity-50"
+          >
+            {settle.isPending || settleReceipt.isLoading ? "Confirming..." : "Settle matured loan"}
+          </button>
+          <TxStatus
+            hash={settle.data}
+            isPending={settle.isPending}
+            isConfirming={settleReceipt.isLoading}
+            isSuccess={settleReceipt.isSuccess}
+            error={settle.error}
+            successLabel="Settled."
+          />
         </div>
       )}
     </div>

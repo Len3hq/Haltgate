@@ -46,23 +46,23 @@ export function GovernanceSection() {
 
       <div className="mt-14 grid gap-4 sm:grid-cols-3">
         <div className="rounded-[var(--radius-card-lg)] border border-[var(--color-border)] bg-[var(--color-bg-card)] p-6">
-          <p className="text-xs uppercase tracking-wide text-[var(--color-text-faint)]">Tier 1 -- Keeper</p>
+          <p className="text-xs uppercase tracking-wide text-[var(--color-text-faint)]">Tier 1 — Keeper</p>
           <p className="mt-2 text-sm leading-relaxed text-[var(--color-text-muted)]">
-            Fast and narrow. Only flips the halt state machine -- nothing else. Not gated by a timelock, because
+            Fast and narrow. Only flips the halt state machine — nothing else. Not gated by a timelock, because
             reacting to a real halt is time-sensitive.
           </p>
         </div>
         <div className="rounded-[var(--radius-card-lg)] border border-[var(--color-border)] bg-[var(--color-bg-card)] p-6">
-          <p className="text-xs uppercase tracking-wide text-[var(--color-text-faint)]">Tier 2 -- Multisig</p>
+          <p className="text-xs uppercase tracking-wide text-[var(--color-text-faint)]">Tier 2 — Multisig</p>
           <p className="mt-2 text-sm leading-relaxed text-[var(--color-text-muted)]">
-            Controls the price oracle directly. No timelock delay here either -- pausing and resuming the feed has
+            Controls the price oracle directly. No timelock delay here either — pausing and resuming the feed has
             to track real-world events as they happen.
           </p>
         </div>
         <div className="rounded-[var(--radius-card-lg)] border border-[var(--color-border)] bg-[var(--color-bg-card)] p-6">
-          <p className="text-xs uppercase tracking-wide text-[var(--color-text-faint)]">Tier 3 -- Multisig + Timelock</p>
+          <p className="text-xs uppercase tracking-wide text-[var(--color-text-faint)]">Tier 3 — Multisig + Timelock</p>
           <p className="mt-2 text-sm leading-relaxed text-[var(--color-text-muted)]">
-            Risk parameters -- max LTV, liquidation threshold, liquidation bonus. Rare, high-impact changes get a
+            Risk parameters — max LTV, liquidation threshold, liquidation bonus. Rare, high-impact changes get a
             mandatory delay before they can execute.
           </p>
         </div>
