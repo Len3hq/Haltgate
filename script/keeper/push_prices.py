@@ -30,6 +30,13 @@ import sys
 import time
 import urllib.request
 
+# Unbuffered stdout: piped to a cron log, buffering hides all progress until
+# the run finishes, which is exactly when you no longer need it.
+try:
+    sys.stdout.reconfigure(line_buffering=True)
+except AttributeError:  # Python < 3.7
+    pass
+
 WAD = 10**18
 BPS = 10_000
 RPC = os.environ.get("RPC_URL", "https://testrpc.xlayer.tech/terigon")
