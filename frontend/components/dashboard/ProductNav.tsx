@@ -10,12 +10,16 @@ const PRODUCTS = [
   { href: "/app", label: "Markets" },
   { href: "/app/fixed", label: "Fixed Term" },
   { href: "/app/multiply", label: "Multiply" },
+  { href: "/docs", label: "Docs" },
 ];
 
 function isActive(pathname: string, href: string): boolean {
   if (href === "/app") {
     // Markets owns /app and /app/<market>, but not the other products'.
-    return pathname === "/app" || (!pathname.startsWith("/app/fixed") && !pathname.startsWith("/app/multiply"));
+    return (
+      pathname === "/app" ||
+      (pathname.startsWith("/app/") && !pathname.startsWith("/app/fixed") && !pathname.startsWith("/app/multiply"))
+    );
   }
   return pathname.startsWith(href);
 }

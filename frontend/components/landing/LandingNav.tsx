@@ -21,6 +21,9 @@ export function LandingNav() {
           <a href="#governance" className="transition-colors hover:text-[var(--color-text)]">
             Governance
           </a>
+          <Link href="/docs" className="transition-colors hover:text-[var(--color-text)]">
+            Docs
+          </Link>
         </nav>
         <Link
           href="/app"

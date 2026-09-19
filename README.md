@@ -69,6 +69,7 @@ Three details that matter more than they look:
 - Next.js dashboard organised around three product surfaces rather than one page of tabs: **Markets** (variable borrow, earn, liquidate), **Fixed Term**, and **Multiply**. Each is its own route with its own market table and its own columns
 - Borrow, Earn and Liquidate stay tabs on a market page, because they genuinely are three views of one variable-rate position
 - A live interest-rate curve, health factor and liquidation-price previews, and a status banner that explains the current halt state in plain language
+- A documentation site at `/docs`: 12 pages across getting started, products, mechanics and reference, with a sidebar, anchored headings and prev/next navigation. The contracts page reads the app's own address registry, so it cannot drift from what is deployed
 - A self-serve faucet so anyone can get test collateral and try it
 
 ## Architecture
