@@ -99,8 +99,8 @@ export function LeveragePanel() {
     query: { refetchInterval: 8_000 },
   });
 
-  // A market's maxLTV caps achievable leverage at 1 / (1 - maxLTV) -- 2x at a
-  // 50% LTV. That's an asymptote no finite number of loops reaches, so the
+  // A market's maxLTV caps achievable leverage at 1 / (1 - maxLTV), so 1.82x
+  // to 2.50x across these markets. That's an asymptote no loop reaches, so the
   // slider stops short of it rather than offering a multiple that can never
   // actually be filled.
   const maxSelectable = useMemo(() => {

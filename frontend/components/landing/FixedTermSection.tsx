@@ -7,7 +7,7 @@ const CONTRAST = [
     tone: "var(--color-accent-blue)",
     rate: "Moves with utilization",
     close: "Liquidated if the price falls far enough",
-    ltv: "50% on every market",
+    ltv: "45% to 60%, set per asset",
   },
   {
     kind: "Fixed Term",
