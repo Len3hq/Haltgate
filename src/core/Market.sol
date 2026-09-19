@@ -204,8 +204,14 @@ contract Market is Ownable, ReentrancyGuard {
         lastAccrualTimestamp = block.timestamp;
     }
 
+    /// @notice setFixedParams refuses to raise the fixed LTV above this one;
+    /// this refuses to lower this one beneath the fixed LTV. Guarding only the
+    /// first direction let governance strand fixedMaxLTV above maxLTV, leaving
+    /// the loan nothing can liquidate borrowing the more per unit of collateral.
+    /// Lowering both means lowering the fixed LTV first.
     function setRiskParams(uint256 newMaxLTV, uint256 newLiquidationThreshold) external onlyOwner {
         if (newLiquidationThreshold <= newMaxLTV || newLiquidationThreshold > WAD) revert InvalidRiskParams();
+        if (fixedMaxLTV > newMaxLTV) revert InvalidRiskParams();
         maxLTV = newMaxLTV;
         liquidationThreshold = newLiquidationThreshold;
         emit RiskParamsUpdated(newMaxLTV, newLiquidationThreshold);

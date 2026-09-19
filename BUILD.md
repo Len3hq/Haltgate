@@ -287,6 +287,16 @@ The larger addition, and the only milestone here that touches `Market`'s core ri
   - Landing page gains a Fixed Term section built as a side-by-side contrast with the variable loan (rate, how it can close, max LTV), since the differentiator only lands if you can see what it differs from.
   - Modelled on Kamino, where Multiply is a top-level destination with its own list rather than a mode inside a lending page.
 
+- [x] **Audit finding, fixed: the LTV invariant was guarded in one direction only, 2026-09-19.** `setFixedParams()` refuses to raise `fixedMaxLTV` above `maxLTV`, but `setRiskParams()` never checked the reverse, so governance could lower `maxLTV` *underneath* an existing `fixedMaxLTV` and silently invert the relationship — leaving the loan nothing can liquidate borrowing more per unit of collateral than the one that can, which is precisely what the guard exists to prevent.
+  - Found by reading the setters while scoping the per-asset LTV work, not by a failing test. Proven with a throwaway probe first (set fixed to 45%, then `setRiskParams(40%, 45%)` succeeded and left `fixedMaxLTV > maxLTV`) rather than asserted from inspection, then fixed and the probe deleted in favour of proper tests.
+  - One line in `setRiskParams`: `if (fixedMaxLTV > newMaxLTV) revert InvalidRiskParams();`. Lowering both now means lowering the fixed LTV first, which is the correct ordering regardless.
+  - 5 new tests: the downward move rejected, equal LTVs allowed (the fixed loan must never be *looser*, tightness is fine), the correct lowering order succeeding, the pre-existing threshold guard still firing, and raising the variable LTV never breaking it. **297 tests.**
+  - Severity is low on its own since it needs an owner call through the timelock, but guard-rails exist for governance mistakes specifically, and the asymmetry was plainly unintentional. It also went live the moment the next item started calling `setRiskParams` on all five markets.
+
+- [x] **Per-asset variable LTVs, 2026-09-19.** The fixed-term caps were tiered from the start while the variable cap stayed a flat 50% everywhere, so Tesla and the S&P 500 carried identical risk parameters despite very different volatility. Same reasoning as the fixed tiers, now applied to both: **TSLA 45/50, NVDA 50/55, AAPL 55/60, MSFT 55/60, SPY 60/65** (max LTV / liquidation threshold), keeping the existing 5pp buffer. This *raises* the ceiling for the steadier assets rather than lowering it for everything. Every market's fixed cap still sits below its variable one, now enforced on-chain in both directions.
+
+- [x] **`script/RefreshOracles.s.sol`, 2026-09-19.** The mock oracles have no upstream feed, so they age past Market's 24h staleness window and borrowing stops across every market — which happened once mid-build and blocked a live test. One command now re-pushes all five prices through the multisig. It deliberately **skips a paused oracle**, since refreshing one would silently resolve the very halt the demo is showing.
+
 ### Milestone 4 — Multi-Market Support — ✅ done, 2026-09-18
 Five isolated markets live: **NVIDIA, Tesla, Apple, Microsoft, S&P 500 ETF**. Halting one now demonstrably leaves the other four trading, which is the only way to actually *prove* halts are per-asset rather than protocol-wide.
 

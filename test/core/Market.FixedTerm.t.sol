@@ -446,4 +446,54 @@ contract MarketFixedTermTest is Test {
         // to reflect that or settling becomes the more profitable action.
         assertLt(market.MAX_SETTLEMENT_BOUNTY(), market.liquidationBonus(), "settling must not outpay liquidating");
     }
+
+    // --- The LTV invariant, both directions ------------------------------
+    // A loan nothing can liquidate must never borrow more per unit of
+    // collateral than one that can. setFixedParams guarded the upward move
+    // from the start; the downward move through setRiskParams did not, which
+    // let governance strand fixedMaxLTV above maxLTV.
+
+    function test_SetRiskParams_CannotDropMaxLtvBeneathFixedLtv() public {
+        assertEq(market.maxLTV(), MAX_LTV);
+        assertEq(market.fixedMaxLTV(), FIXED_LTV);
+
+        vm.prank(owner);
+        vm.expectRevert(Market.InvalidRiskParams.selector);
+        market.setRiskParams(FIXED_LTV - 1, FIXED_LTV + 0.05e18);
+
+        assertEq(market.maxLTV(), MAX_LTV, "unchanged after the revert");
+    }
+
+    function test_SetRiskParams_AllowsExactlyTheFixedLtv() public {
+        // Equal is fine: the fixed loan is never *looser*, just not tighter.
+        vm.prank(owner);
+        market.setRiskParams(FIXED_LTV, FIXED_LTV + 0.05e18);
+        assertEq(market.maxLTV(), FIXED_LTV);
+        assertEq(market.fixedMaxLTV(), FIXED_LTV);
+    }
+
+    function test_SetRiskParams_LoweringBothWorksInTheRightOrder() public {
+        // Fixed first, then variable. This is the path governance must take.
+        vm.startPrank(owner);
+        market.setFixedParams(0.2e18, FIXED_RATE);
+        market.setRiskParams(0.25e18, 0.3e18);
+        vm.stopPrank();
+
+        assertEq(market.fixedMaxLTV(), 0.2e18);
+        assertEq(market.maxLTV(), 0.25e18);
+        assertLe(market.fixedMaxLTV(), market.maxLTV(), "invariant holds");
+    }
+
+    function test_SetRiskParams_StillRejectsThresholdBelowMaxLtv() public {
+        // The pre-existing guard must survive the new one.
+        vm.prank(owner);
+        vm.expectRevert(Market.InvalidRiskParams.selector);
+        market.setRiskParams(0.6e18, 0.6e18);
+    }
+
+    function test_FixedLtvStaysBelowMaxLtvAfterARaise() public {
+        vm.prank(owner);
+        market.setRiskParams(0.7e18, 0.75e18);
+        assertLe(market.fixedMaxLTV(), market.maxLTV(), "raising variable never breaks it");
+    }
 }

@@ -11,7 +11,9 @@ import {LenderVault} from "../src/core/LenderVault.sol";
 /// one-time-set and Market's vault reference is immutable.
 ///
 /// Env: EXISTING_MARKET, INTEREST_RATE_MODEL_ADDRESS, TIMELOCK_ADDRESS,
-/// FIXED_LTV, FIXED_RATE, SETTLEMENT_BOUNTY.
+/// FIXED_LTV, FIXED_RATE, SETTLEMENT_BOUNTY. NEW_MAX_LTV and
+/// NEW_LIQ_THRESHOLD are optional and default to the existing market's, so
+/// a pure logic upgrade doesn't have to restate risk parameters.
 contract UpgradeMarket is Script {
     function run() external {
         uint256 pk = vm.envUint("DEPLOYER_PRIVATE_KEY");
@@ -29,8 +31,8 @@ contract UpgradeMarket is Script {
             address(vault),
             vm.envAddress("INTEREST_RATE_MODEL_ADDRESS"),
             deployer,
-            old.maxLTV(),
-            old.liquidationThreshold(),
+            vm.envOr("NEW_MAX_LTV", old.maxLTV()),
+            vm.envOr("NEW_LIQ_THRESHOLD", old.liquidationThreshold()),
             old.reserveFactor()
         );
         vault.setMarket(address(market));

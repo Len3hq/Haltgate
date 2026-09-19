@@ -104,6 +104,8 @@ The alternative was rejected on purpose. Pooled fixed-rate protocols like [Notio
 
 The second reason is that nothing can close these positions out early: a liquidatable position gets closed at the first sign of trouble, a fixed-term one has to survive the whole term untouched. Ordering between assets then follows how far each realistically moves over a month: TSLA 30%, NVDA 35%, AAPL and MSFT 40%, SPY 45% (a diversified index, not a single name). All at 8%/yr simple interest.
 
+**The LTV invariant is guarded in both directions.** A loan nothing can liquidate must never borrow more per unit of collateral than one that can. `setFixedParams()` enforced that from the start by refusing to raise the fixed LTV above `maxLTV`, but `setRiskParams()` never checked the reverse, so governance could lower `maxLTV` underneath an existing `fixedMaxLTV` and silently invert the relationship. Found by auditing rather than by a failing test, and proven with a throwaway probe before being fixed. Lowering both now means lowering the fixed LTV first, which is the correct ordering anyway.
+
 **Fixed Term and Multiply are products, not tabs.** A tab has no URL, so it can't be linked or demoed directly, and it forces every product to share one market table. That mattered concretely: fixed-term max LTV differs per asset (30% to 45%) and the shared table had nowhere to put that column, so the number ended up buried in a tooltip. Each product now has its own route, its own market list with its own columns, and a page that can carry its own headline. This follows Kamino, where Multiply is a top-level destination rather than a mode inside a lending page. Borrow, Earn and Liquidate stayed tabs because they really are three views of one position.
 
 **Settling a matured loan pays a bounty, because permission without incentive is not a mechanism.** `settleMatured()` is permissionless, but the collateral goes to the protocol, so the caller originally received nothing for their gas. Offerbook gets this alignment for free: the lender claims, and the lender keeps the collateral. A pool has no such counterparty, so the permission carried over but the incentive did not, and a defaulted loan could sit unsettled indefinitely while the vault kept counting it at full face value. The settler now takes 0.5% of the seized collateral, capped on-chain at 2%. It is denominated in collateral tokens rather than dollars, so paying it reads no price. The cap sits far below the 5% liquidation bonus on purpose: a liquidator fronts the debt, a settler fronts only gas.
@@ -114,7 +116,7 @@ The second reason is that nothing can close these positions out early: a liquida
 
 **Repayment works during a halt; new fixed loans do not.** Same rule the variable path already follows: `repayFixed()` only reduces risk, so it stays open in every state. `settleMatured()` is gated on `canLiquidate()`, which means a halt suspends defaults rather than letting the protocol claim collateral at a price nobody can verify.
 
-**Leverage looping stops early rather than reverting.** A market's max LTV caps achievable leverage at `1 / (1 - maxLTV)` — 2x here — which is an asymptote no finite number of loops reaches. Reverting on a near-miss would reject reasonable requests, so each pass is capped by live LTV headroom and available liquidity, and a caller-supplied `minFinalCollateral` floor is what actually protects against under-delivery.
+**Leverage looping stops early rather than reverting.** A market's max LTV caps achievable leverage at `1 / (1 - maxLTV)`, so 1.82x to 2.50x depending on the asset, which is an asymptote no finite number of loops reaches. Reverting on a near-miss would reject reasonable requests, so each pass is capped by live LTV headroom and available liquidity, and a caller-supplied `minFinalCollateral` floor is what actually protects against under-delivery.
 
 **Precision fidelity over precision.** `LeverageZap` computes borrow headroom using the same two-step rounding as `Market`, even though collapsing it would be more precise — because rounding even one wei above Market's own figure makes the next borrow revert and kills the loop. Matching the reference implementation beats being marginally more accurate than it.
 
@@ -138,8 +140,8 @@ Five isolated markets are live. Each has its own collateral token, faucet, oracl
 
 | Contract | Address |
 |---|---|
-| Market | `0xfbc2FA97cF8c4C5D27D3C3D1Fc65b75A6Cc87d7E` |
-| LenderVault | `0xdcbD086f600Cdb73C311A89aF4C73919aA6946d2` |
+| Market | `0x446D583F4fF636A3869940Ff4082D979d7bA3B0e` |
+| LenderVault | `0xAC4F12f02b914A0F35B8bB2955F0052eBF32d789` |
 | HaltController | `0x4C4AC6fd104Eb8CE9887a0e7Da757f86d08EE807` |
 | Oracle (mock) | `0x6092743d17D892c2C6033CF323783Bd7ec5952D4` |
 | SwapModule | `0x3797E011686e756EFfb8619B5faDCE261BA59680` |
@@ -150,8 +152,8 @@ Five isolated markets are live. Each has its own collateral token, faucet, oracl
 
 | Contract | Address |
 |---|---|
-| Market | `0x73a0E12bD641113E9a9Cb74f6b1d54029943aB90` |
-| LenderVault | `0x5f245b620A2B104570e3902AeDb12205C37a8E73` |
+| Market | `0x302D52a876e6e81Fc59c7D31704E2e332E608fC1` |
+| LenderVault | `0x4C7f2B1Cea3bEb9cD9dd9d7BbA20947810EEC73F` |
 | HaltController | `0x0c69EF3ce2fBaCcadAd1d1dbE88C315dB491d649` |
 | Oracle (mock) | `0xa15Be4B64b08EEfcc85ad375AD391A167DEdF3E2` |
 | SwapModule | `0x10510b248972732b565b333d0Ccfa60493607C21` |
@@ -162,8 +164,8 @@ Five isolated markets are live. Each has its own collateral token, faucet, oracl
 
 | Contract | Address |
 |---|---|
-| Market | `0xb19b7A46683C4862333fa5a860C1f4a2FF7f6Bbe` |
-| LenderVault | `0x4248d1948CE12BF501036e86C3577469849fA8e9` |
+| Market | `0xb34F42528E3FF50D40B0B43fb56919B28c57aDCC` |
+| LenderVault | `0x51b0c65Cd795d508a23c7BAf91859CF24f0CAca9` |
 | HaltController | `0x1567e8F41DE5f8a67d3aF33214129AB310149C9A` |
 | Oracle (mock) | `0x365262ae56532C1594B42B6C944768E1aAF9caf6` |
 | SwapModule | `0xD1ff0651B9e4111cAaA5C33F3150DdE0451B8019` |
@@ -174,8 +176,8 @@ Five isolated markets are live. Each has its own collateral token, faucet, oracl
 
 | Contract | Address |
 |---|---|
-| Market | `0xCf17F4457ae8b2A6720Ae8499B807D0221f90720` |
-| LenderVault | `0xdc6d47274397Da642a1a4abdb75273f48F6aF9bF` |
+| Market | `0xccDD95fA4aB617202F413EFc3e1C959cdA410bBf` |
+| LenderVault | `0x7BC9fc391ADf7aD3EE034e9b830aa9F26288f826` |
 | HaltController | `0x4FF088755DcB27F88C5515b17F3263CCB3f7E81c` |
 | Oracle (mock) | `0xe722cc0b1C5EadAa69a5deE603954AC71753cc19` |
 | SwapModule | `0xb4681F6945038E5a7Be56C0aFec01ee8A5c2B0c6` |
@@ -186,8 +188,8 @@ Five isolated markets are live. Each has its own collateral token, faucet, oracl
 
 | Contract | Address |
 |---|---|
-| Market | `0xDE3FfdE11a8C56B28d52148c0038F3a834F2d481` |
-| LenderVault | `0x4Fd339772Bd35113BEb674c3ABa4B897cedA4595` |
+| Market | `0xb8213d2051b75602E435d249fAe1c5E88e571ee5` |
+| LenderVault | `0xfBda6fe34c4827c0ac1267390f5e45FcA75Fc90B` |
 | HaltController | `0x78aDcB61837Dd42C1AED161F0B3Fd42C57A7ca69` |
 | Oracle (mock) | `0xD1405dba838e4d01Db8581441f47Cd57D49F7f8E` |
 | SwapModule | `0x4c26B0CB20a985049C7a9817aAFd93C6c93cADd2` |
@@ -200,8 +202,6 @@ Shared across all five markets:
 
 | Parameter | Value |
 |---|---|
-| Max LTV (variable) | 50% |
-| Liquidation threshold | 55% |
 | Liquidation bonus | 5% |
 | Reserve factor | 10% |
 | Fixed-term rate | 8%/yr, simple |
@@ -210,17 +210,17 @@ Shared across all five markets:
 | Max oracle staleness | 24 hours |
 | Settlement delay | 7 days (bounded 1 to 30) |
 | Swap fee | 0.30% (capped at 5%) |
-| Max leverage | Contract cap 5x; ~2x actually reachable at a 50% LTV |
+| Max leverage | Contract cap 5x; the reachable ceiling is `1 / (1 - maxLTV)` per market, so 1.82x to 2.50x |
 
-Fixed-term LTV is set per asset, ordered by how far each realistically moves over a month:
+Risk parameters are set per asset, ordered by how far each one realistically moves. Both loan types are tiered now, and the fixed-term cap always sits below the variable one because nothing can close those positions out early:
 
-| Market | Fixed-term max LTV |
-|---|---|
-| Tesla | 30% |
-| NVIDIA | 35% |
-| Apple | 40% |
-| Microsoft | 40% |
-| S&P 500 ETF | 45% |
+| Market | Variable max LTV | Liquidation threshold | Fixed-term max LTV | Leverage ceiling |
+|---|---|---|---|---|
+| Tesla | 45% | 50% | 30% | 1.82x |
+| NVIDIA | 50% | 55% | 35% | 2.00x |
+| Apple | 55% | 60% | 40% | 2.22x |
+| Microsoft | 55% | 60% | 40% | 2.22x |
+| S&P 500 ETF | 60% | 65% | 45% | 2.50x |
 
 ## Running it
 
@@ -228,7 +228,7 @@ Contracts ([Foundry](https://book.getfoundry.sh/)):
 
 ```bash
 forge build
-forge test          # 292 tests across 23 suites
+forge test          # 297 tests across 23 suites
 ```
 
 Frontend:
@@ -259,7 +259,6 @@ This project has been deliberate about not overstating what's real:
 Detailed plan and status in [`BUILD.md`](BUILD.md).
 
 - **Converting seized collateral back to cash.** `settleMatured()` leaves the protocol holding collateral while the vault is owed USDG, and the share price stays understated until governance sells it. `withdrawSeizedCollateral()` hands it over for that; routing it through the `SwapModule` automatically is the obvious next step, and was left out on purpose because an automatic sale reads a price, which is the dependency this loan type exists to avoid.
-- **Per-asset variable LTVs.** The fixed-term caps are tiered per asset; the variable-rate cap is still a flat 50% everywhere, which means Tesla at 50% carries more risk than the S&P at 50%. Same reasoning, same numbers, not yet applied.
 - **CF Benchmarks corporate-action feed** — a real third-party CA feed exists with a documented methodology, a genuine upgrade path beyond a manually-toggled schedule
 
 ## Mainnet migration
