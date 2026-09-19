@@ -66,7 +66,9 @@ Three details that matter more than they look:
 - Three tiers: a permissionless keeper path for fast state transitions, a multisig for the oracle, and multisig-behind-timelock for risk parameters and contract ownership
 
 **Frontend**
-- Next.js dashboard with persona tabs (Borrow / Fixed / Leverage / Earn / Liquidate), a live interest-rate curve, health factor and liquidation-price previews, and a status banner that explains the current halt state in plain language
+- Next.js dashboard organised around three product surfaces rather than one page of tabs: **Markets** (variable borrow, earn, liquidate), **Fixed Term**, and **Multiply**. Each is its own route with its own market table and its own columns
+- Borrow, Earn and Liquidate stay tabs on a market page, because they genuinely are three views of one variable-rate position
+- A live interest-rate curve, health factor and liquidation-price previews, and a status banner that explains the current halt state in plain language
 - A self-serve faucet so anyone can get test collateral and try it
 
 ## Architecture
@@ -101,6 +103,8 @@ The alternative was rejected on purpose. Pooled fixed-rate protocols like [Notio
 **Fixed-term LTVs are set per asset and all sit below the variable cap.** The main reason is structural rather than about volatility. Offerbook's own documentation works through a **70% LTV** example, roughly double anything offered here, and that is reasonable for them: peer-to-peer means the lender posting a 70% offer is risking their own capital and chose that number. In a shared pool a default is absorbed by every depositor, none of whom picked the LTV, so the cap belongs to governance and has to be conservative. Whole-collateral seizure is only fair when the loan is small relative to what backs it.
 
 The second reason is that nothing can close these positions out early: a liquidatable position gets closed at the first sign of trouble, a fixed-term one has to survive the whole term untouched. Ordering between assets then follows how far each realistically moves over a month: TSLA 30%, NVDA 35%, AAPL and MSFT 40%, SPY 45% (a diversified index, not a single name). All at 8%/yr simple interest.
+
+**Fixed Term and Multiply are products, not tabs.** A tab has no URL, so it can't be linked or demoed directly, and it forces every product to share one market table. That mattered concretely: fixed-term max LTV differs per asset (30% to 45%) and the shared table had nowhere to put that column, so the number ended up buried in a tooltip. Each product now has its own route, its own market list with its own columns, and a page that can carry its own headline. This follows Kamino, where Multiply is a top-level destination rather than a mode inside a lending page. Borrow, Earn and Liquidate stayed tabs because they really are three views of one position.
 
 **Settling a matured loan pays a bounty, because permission without incentive is not a mechanism.** `settleMatured()` is permissionless, but the collateral goes to the protocol, so the caller originally received nothing for their gas. Offerbook gets this alignment for free: the lender claims, and the lender keeps the collateral. A pool has no such counterparty, so the permission carried over but the incentive did not, and a defaulted loan could sit unsettled indefinitely while the vault kept counting it at full face value. The settler now takes 0.5% of the seized collateral, capped on-chain at 2%. It is denominated in collateral tokens rather than dollars, so paying it reads no price. The cap sits far below the 5% liquidation bonus on purpose: a liquidator fronts the debt, a settler fronts only gas.
 

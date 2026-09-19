@@ -15,6 +15,9 @@ export function LandingNav() {
           <a href="#features" className="transition-colors hover:text-[var(--color-text)]">
             Protection
           </a>
+          <a href="#fixed-term" className="transition-colors hover:text-[var(--color-text)]">
+            Fixed Term
+          </a>
           <a href="#governance" className="transition-colors hover:text-[var(--color-text)]">
             Governance
           </a>

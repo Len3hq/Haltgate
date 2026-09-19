@@ -33,3 +33,14 @@ function useMarketContext(): MarketContextValue {
 export function useMarketContracts() {
   return useMarketContext().contracts;
 }
+
+/// The routed market's config, for components that need its name or symbol
+/// rather than its addresses.
+export function useMarketConfig() {
+  return useMarketContext().market;
+}
+
+/// The routed market's key, for building links that stay on the same asset.
+export function useMarketKey() {
+  return useMarketContext().market.key;
+}

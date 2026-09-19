@@ -5,26 +5,23 @@ import { PositionPanel } from "./PositionPanel";
 import { ActionPanel } from "./ActionPanel";
 import { EarnPanel } from "./EarnPanel";
 import { LiquidatePanel } from "./LiquidatePanel";
-import { LeveragePanel } from "./LeveragePanel";
-import { FixedTermPanel } from "./FixedTermPanel";
+import Link from "next/link";
+import { useMarketKey } from "@/lib/market-context";
 
-type Persona = "borrow" | "fixed" | "leverage" | "earn" | "liquidate";
+type Persona = "borrow" | "earn" | "liquidate";
 
 const PERSONAS: { key: Persona; label: string; hint: string }[] = [
   { key: "borrow", label: "Borrow", hint: "Supply collateral, borrow USDG at a floating rate" },
-  { key: "fixed", label: "Fixed", hint: "Lock a rate and an end date, with no liquidation" },
-  { key: "leverage", label: "Leverage", hint: "One-click loop into more wNVDAx exposure" },
   { key: "earn", label: "Earn", hint: "Deposit USDG, earn interest" },
   { key: "liquidate", label: "Liquidate", hint: "Repay an unsafe position for a discount" },
 ];
 
-/// Previously every flow (borrow, earn, liquidate) rendered as permanently
-/// stacked cards, all visible at once regardless of which one a given
-/// visitor actually came to use -- the direct cause of "too many numbers
-/// everywhere." Only one borrower/lender/liquidator persona's numbers show
-/// at a time now; switching tabs is one click, nothing is deleted.
+/// Three views of one variable-rate position, so they stay tabs. Fixed Term
+/// and Multiply are separate products with their own risk models, and live at
+/// their own routes rather than behind a tab with no URL.
 export function DashboardTabs() {
   const [persona, setPersona] = useState<Persona>("borrow");
+  const marketKey = useMarketKey();
 
   return (
     <div>
@@ -43,6 +40,21 @@ export function DashboardTabs() {
       </div>
       <p className="mt-2 text-xs text-[var(--color-text-faint)]">{PERSONAS.find((p) => p.key === persona)?.hint}</p>
 
+      <div className="mt-3 flex gap-2">
+        <Link
+          href={`/app/fixed/${marketKey}`}
+          className="flex-1 rounded-[var(--radius-card)] border border-[var(--color-border)] px-3 py-2 text-center text-[11px] font-medium text-[var(--color-text-muted)] transition-colors hover:border-[var(--color-accent)] hover:text-[var(--color-text)]"
+        >
+          Fixed Term, no liquidation →
+        </Link>
+        <Link
+          href={`/app/multiply/${marketKey}`}
+          className="flex-1 rounded-[var(--radius-card)] border border-[var(--color-border)] px-3 py-2 text-center text-[11px] font-medium text-[var(--color-text-muted)] transition-colors hover:border-[var(--color-accent)] hover:text-[var(--color-text)]"
+        >
+          Multiply →
+        </Link>
+      </div>
+
       <div className="mt-4">
         {persona === "borrow" && (
           <div className="space-y-4">
@@ -50,8 +62,6 @@ export function DashboardTabs() {
             <ActionPanel />
           </div>
         )}
-        {persona === "fixed" && <FixedTermPanel />}
-        {persona === "leverage" && <LeveragePanel />}
         {persona === "earn" && <EarnPanel />}
         {persona === "liquidate" && <LiquidatePanel />}
       </div>
