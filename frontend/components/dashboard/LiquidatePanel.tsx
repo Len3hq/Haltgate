@@ -11,14 +11,16 @@ import {
   useReadHaltControllerCanLiquidate,
   useReadMarketIsFixedDefaulted,
   useReadMarketFixedLoans,
+  useReadMarketSettlementBounty,
   useWriteMarketLiquidate,
   useWriteMarketSettleMatured,
 } from "@/lib/generated";
 import { USDG_DECIMALS, WNVDAX_DECIMALS } from "@/lib/contracts";
-import { formatAmount } from "@/lib/format";
+import { formatAmount, formatBps } from "@/lib/format";
 import { getErrorMessage } from "@/lib/errors";
 import { TxStatus } from "@/components/dashboard/TxStatus";
 import { useMarketContracts } from "@/lib/market-context";
+import { InfoTip } from "@/components/dashboard/InfoTip";
 
 const MAX_UINT256 = (1n << 256n) - 1n;
 
@@ -56,6 +58,7 @@ export function LiquidatePanel() {
     args: targetAddress ? [targetAddress] : undefined,
     query: { enabled: !!targetAddress, refetchInterval: 8_000 },
   });
+  const { data: settlementBounty } = useReadMarketSettlementBounty({ address: CONTRACTS.market });
 
   const { data: allowance, refetch: refetchAllowance } = useReadContract({
     address: CONTRACTS.usdg,
@@ -213,9 +216,24 @@ export function LiquidatePanel() {
           <p className="text-xs uppercase tracking-wide text-[var(--color-text-faint)]">Matured Fixed-Term Loan</p>
           <p className="mt-1 text-xs text-[var(--color-text-muted)]">
             This address has a fixed-term loan past its end date. Fixed-term loans are never liquidated on price, so settling
-            closes it out instead: the {formatAmount(fixedLoan[0], WNVDAX_DECIMALS)} collateral goes to the protocol and the
-            debt is written off. No price is read and no repayment is needed.
+            closes it out instead: the {formatAmount(fixedLoan[0], WNVDAX_DECIMALS)} collateral is claimed and the debt is
+            written off. No price is read and you put up nothing.
           </p>
+          {settlementBounty !== undefined && settlementBounty > 0n && (
+            <p className="mt-2 flex items-baseline justify-between rounded-[var(--radius-card)] bg-[var(--color-bg-elevated)] px-3 py-2 text-xs">
+              <span className="text-[var(--color-text-muted)]">
+                You receive
+                <InfoTip
+                  align="left"
+                  text="Settling a matured loan costs you nothing but gas, so the protocol pays a small share of the collateral to whoever closes it out. Without it nobody would be paid to settle and the pool would keep carrying a defaulted loan at full value."
+                />
+              </span>
+              <span className="font-[family-name:var(--font-display)] font-semibold text-[var(--color-success)]">
+                {formatAmount((fixedLoan[0] * settlementBounty) / 10n ** 18n, WNVDAX_DECIMALS, 4)}{" "}
+                <span className="text-[10px] font-normal">({formatBps(settlementBounty)})</span>
+              </span>
+            </p>
+          )}
           <button
             onClick={() => settle.writeContract({ address: CONTRACTS.market, args: [targetAddress] })}
             disabled={isBusy || settle.isPending || settleReceipt.isLoading || canLiquidate === false}

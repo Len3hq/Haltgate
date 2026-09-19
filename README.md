@@ -59,7 +59,7 @@ Three details that matter more than they look:
 **Fixed-term borrowing (no liquidation)**
 - Lock a rate and an end date: `borrowFixed()` quotes the total owed up front and it never changes
 - The position cannot be liquidated on price at any point during the term, however far the stock falls
-- Maturity replaces liquidation: repay in full and unlock the collateral, or anyone can call `settleMatured()` and the collateral passes to the protocol
+- Maturity replaces liquidation: repay in full and unlock the collateral, or anyone can call `settleMatured()` and the collateral passes to the protocol, minus a small bounty to whoever settled
 - Per-asset LTV caps, all set below the variable market's, because nothing closes these positions out early
 
 **Governance**
@@ -92,9 +92,19 @@ Three details that matter more than they look:
 
 **Governance can retune the settlement delay but never revoke it.** `settlementDelay` is bounded between 1 and 30 days. The floor stops governance setting it near zero and letting anyone stall an ordinary halt; the ceiling stops governance quietly restoring the indefinite lockup.
 
-**A defaulted fixed-term loan is settled without reading a price.** The plan originally said maturity would seize collateral "at a fixed conversion rate," which quietly reintroduces the oracle dependency the loan type exists to avoid: a frozen or stale price would block settlement exactly when it matters. `settleMatured()` instead claims the **whole** collateral and writes the debt off. That is deliberately blunt, and the borrower's protection is the low LTV, not a partial claim.
+**A defaulted fixed-term loan is settled without reading a price.** The plan originally said maturity would seize collateral "at a fixed conversion rate," which quietly reintroduces the oracle dependency the loan type exists to avoid: a frozen or stale price would block settlement exactly when it matters. `settleMatured()` instead claims the **whole** collateral and writes the debt off. Deliberately blunt, and the borrower's protection is the low LTV rather than a partial claim.
 
-**Fixed-term LTVs are set per asset and all sit below the variable cap.** A liquidatable position can be closed at the first sign of trouble; a fixed-term one has to survive the entire term untouched, so the same 50% cap would carry materially more risk. The caps are ordered by how far each asset realistically moves over a 30-day window: TSLA 30%, NVDA 35%, AAPL and MSFT 40%, SPY 45% (a diversified index, not a single name). All at 8%/yr simple interest.
+This matches [Jupiter Offerbook](https://docs.jup.ag/user-docs/earn/offerbook) on every point that matters, verified against their docs rather than assumed: whole collateral, not automatic, no grace period, and the borrower can still repay right up until the claim lands. One difference is forced by the structure. Offerbook is peer-to-peer so only the named lender may claim; a pool has no such counterparty, which is why `settleMatured()` is permissionless.
+
+The alternative was rejected on purpose. Pooled fixed-rate protocols like [Notional](https://blog.notional.finance/understanding-liquidations/) and Term Finance settle a maturity default by selling *part* of the collateral at a discount to the oracle price and returning the rest. That is fairer to the borrower, and it is precisely what HaltGate cannot do, because it needs a trustworthy price at the moment of settlement and the entire premise here is that windows exist where none is available.
+
+**Fixed-term LTVs are set per asset and all sit below the variable cap.** The main reason is structural rather than about volatility. Offerbook's own documentation works through a **70% LTV** example, roughly double anything offered here, and that is reasonable for them: peer-to-peer means the lender posting a 70% offer is risking their own capital and chose that number. In a shared pool a default is absorbed by every depositor, none of whom picked the LTV, so the cap belongs to governance and has to be conservative. Whole-collateral seizure is only fair when the loan is small relative to what backs it.
+
+The second reason is that nothing can close these positions out early: a liquidatable position gets closed at the first sign of trouble, a fixed-term one has to survive the whole term untouched. Ordering between assets then follows how far each realistically moves over a month: TSLA 30%, NVDA 35%, AAPL and MSFT 40%, SPY 45% (a diversified index, not a single name). All at 8%/yr simple interest.
+
+**Settling a matured loan pays a bounty, because permission without incentive is not a mechanism.** `settleMatured()` is permissionless, but the collateral goes to the protocol, so the caller originally received nothing for their gas. Offerbook gets this alignment for free: the lender claims, and the lender keeps the collateral. A pool has no such counterparty, so the permission carried over but the incentive did not, and a defaulted loan could sit unsettled indefinitely while the vault kept counting it at full face value. The settler now takes 0.5% of the seized collateral, capped on-chain at 2%. It is denominated in collateral tokens rather than dollars, so paying it reads no price. The cap sits far below the 5% liquidation bonus on purpose: a liquidator fronts the debt, a settler fronts only gas.
+
+**A known gap, stated rather than papered over.** `totalAssets()` counts fixed principal but not seized collateral, so the share price dips between settlement and governance selling that collateral, then recovers above where it started (at a 30 to 45% LTV the collateral is worth two to three times the debt). Closing the gap properly means valuing the collateral, which is the exact oracle dependency this loan type exists to avoid. The bounty makes settlement prompt, which shrinks the window; it does not eliminate it.
 
 **Fixed-term interest is recognised at repayment, not accrued in advance.** Booking unearned interest into the share price would let a lender deposit late, redeem early, and collect yield on a loan that had not paid yet. `LenderVault.totalAssets()` counts outstanding fixed **principal** only; the interest lifts the share price at the moment it actually arrives.
 
@@ -124,8 +134,8 @@ Five isolated markets are live. Each has its own collateral token, faucet, oracl
 
 | Contract | Address |
 |---|---|
-| Market | `0xA6dDbE7D72B47B1BAd95A236b35723c3dA72eCb5` |
-| LenderVault | `0xE5cdECCDfFFef563e4847af1311C2d693eDb2b93` |
+| Market | `0xfbc2FA97cF8c4C5D27D3C3D1Fc65b75A6Cc87d7E` |
+| LenderVault | `0xdcbD086f600Cdb73C311A89aF4C73919aA6946d2` |
 | HaltController | `0x4C4AC6fd104Eb8CE9887a0e7Da757f86d08EE807` |
 | Oracle (mock) | `0x6092743d17D892c2C6033CF323783Bd7ec5952D4` |
 | SwapModule | `0x3797E011686e756EFfb8619B5faDCE261BA59680` |
@@ -136,8 +146,8 @@ Five isolated markets are live. Each has its own collateral token, faucet, oracl
 
 | Contract | Address |
 |---|---|
-| Market | `0xDcD5a4bfdC342Fdd4b17bd66B038efCC1e217070` |
-| LenderVault | `0xb4BC121B8CD5bD770def16fc14817e92a01D245f` |
+| Market | `0x73a0E12bD641113E9a9Cb74f6b1d54029943aB90` |
+| LenderVault | `0x5f245b620A2B104570e3902AeDb12205C37a8E73` |
 | HaltController | `0x0c69EF3ce2fBaCcadAd1d1dbE88C315dB491d649` |
 | Oracle (mock) | `0xa15Be4B64b08EEfcc85ad375AD391A167DEdF3E2` |
 | SwapModule | `0x10510b248972732b565b333d0Ccfa60493607C21` |
@@ -148,8 +158,8 @@ Five isolated markets are live. Each has its own collateral token, faucet, oracl
 
 | Contract | Address |
 |---|---|
-| Market | `0xA7238C90Ed617cD783fb93A976C09d7BDE33b539` |
-| LenderVault | `0x6dC25DE624fd55f1ba34c6aAf06c1941Fa829174` |
+| Market | `0xb19b7A46683C4862333fa5a860C1f4a2FF7f6Bbe` |
+| LenderVault | `0x4248d1948CE12BF501036e86C3577469849fA8e9` |
 | HaltController | `0x1567e8F41DE5f8a67d3aF33214129AB310149C9A` |
 | Oracle (mock) | `0x365262ae56532C1594B42B6C944768E1aAF9caf6` |
 | SwapModule | `0xD1ff0651B9e4111cAaA5C33F3150DdE0451B8019` |
@@ -160,8 +170,8 @@ Five isolated markets are live. Each has its own collateral token, faucet, oracl
 
 | Contract | Address |
 |---|---|
-| Market | `0xC35893CE92e693941Ca8FF080f72E5622DE80461` |
-| LenderVault | `0x01131c26f9D885548D71aDc8Ff2Fa9cd6e02BC39` |
+| Market | `0xCf17F4457ae8b2A6720Ae8499B807D0221f90720` |
+| LenderVault | `0xdc6d47274397Da642a1a4abdb75273f48F6aF9bF` |
 | HaltController | `0x4FF088755DcB27F88C5515b17F3263CCB3f7E81c` |
 | Oracle (mock) | `0xe722cc0b1C5EadAa69a5deE603954AC71753cc19` |
 | SwapModule | `0xb4681F6945038E5a7Be56C0aFec01ee8A5c2B0c6` |
@@ -172,8 +182,8 @@ Five isolated markets are live. Each has its own collateral token, faucet, oracl
 
 | Contract | Address |
 |---|---|
-| Market | `0xAf9c884e6d6D8e82D004eC89D11a7FD7a3DDD3b0` |
-| LenderVault | `0xaC0269773bF362c4049150D9477BcE7F7c9382E6` |
+| Market | `0xDE3FfdE11a8C56B28d52148c0038F3a834F2d481` |
+| LenderVault | `0x4Fd339772Bd35113BEb674c3ABa4B897cedA4595` |
 | HaltController | `0x78aDcB61837Dd42C1AED161F0B3Fd42C57A7ca69` |
 | Oracle (mock) | `0xD1405dba838e4d01Db8581441f47Cd57D49F7f8E` |
 | SwapModule | `0x4c26B0CB20a985049C7a9817aAFd93C6c93cADd2` |
@@ -192,6 +202,7 @@ Shared across all five markets:
 | Reserve factor | 10% |
 | Fixed-term rate | 8%/yr, simple |
 | Fixed-term length | 1 to 30 days |
+| Settlement bounty | 0.5% of seized collateral (capped at 2%) |
 | Max oracle staleness | 24 hours |
 | Settlement delay | 7 days (bounded 1 to 30) |
 | Swap fee | 0.30% (capped at 5%) |
@@ -213,7 +224,7 @@ Contracts ([Foundry](https://book.getfoundry.sh/)):
 
 ```bash
 forge build
-forge test          # 283 tests across 23 suites
+forge test          # 292 tests across 23 suites
 ```
 
 Frontend:
@@ -243,7 +254,7 @@ This project has been deliberate about not overstating what's real:
 
 Detailed plan and status in [`BUILD.md`](BUILD.md).
 
-- **Converting seized collateral back to cash.** `settleMatured()` leaves the protocol holding collateral while the vault is owed USDG. `withdrawSeizedCollateral()` hands it to governance to sell; routing that through the `SwapModule` automatically is the obvious next step, and was left out on purpose because an automatic sale reads a price, which is the dependency this loan type exists to avoid.
+- **Converting seized collateral back to cash.** `settleMatured()` leaves the protocol holding collateral while the vault is owed USDG, and the share price stays understated until governance sells it. `withdrawSeizedCollateral()` hands it over for that; routing it through the `SwapModule` automatically is the obvious next step, and was left out on purpose because an automatic sale reads a price, which is the dependency this loan type exists to avoid.
 - **Per-asset variable LTVs.** The fixed-term caps are tiered per asset; the variable-rate cap is still a flat 50% everywhere, which means Tesla at 50% carries more risk than the S&P at 50%. Same reasoning, same numbers, not yet applied.
 - **CF Benchmarks corporate-action feed** — a real third-party CA feed exists with a documented methodology, a genuine upgrade path beyond a manually-toggled schedule
 

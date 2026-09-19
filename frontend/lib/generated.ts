@@ -1201,6 +1201,13 @@ export const marketAbi = [
   {
     type: 'function',
     inputs: [],
+    name: 'MAX_SETTLEMENT_BOUNTY',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
     name: 'MIN_FIXED_TERM',
     outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
     stateMutability: 'view',
@@ -1582,10 +1589,26 @@ export const marketAbi = [
   },
   {
     type: 'function',
+    inputs: [
+      { name: 'newSettlementBounty', internalType: 'uint256', type: 'uint256' },
+    ],
+    name: 'setSettlementBounty',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
     inputs: [{ name: 'user', internalType: 'address', type: 'address' }],
     name: 'settleMatured',
     outputs: [],
     stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'settlementBounty',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
   },
   {
     type: 'function',
@@ -1726,6 +1749,12 @@ export const marketAbi = [
       },
       {
         name: 'collateralSeized',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+      {
+        name: 'bounty',
         internalType: 'uint256',
         type: 'uint256',
         indexed: false,
@@ -1985,6 +2014,19 @@ export const marketAbi = [
     type: 'event',
     anonymous: false,
     inputs: [
+      {
+        name: 'settlementBounty',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+    ],
+    name: 'SettlementBountyUpdated',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
       { name: 'user', internalType: 'address', type: 'address', indexed: true },
       {
         name: 'amount',
@@ -2013,6 +2055,7 @@ export const marketAbi = [
   { type: 'error', inputs: [], name: 'InsufficientCollateral' },
   { type: 'error', inputs: [], name: 'InsufficientLiquidity' },
   { type: 'error', inputs: [], name: 'InsufficientReserves' },
+  { type: 'error', inputs: [], name: 'InvalidBounty' },
   { type: 'error', inputs: [], name: 'InvalidFixedParams' },
   { type: 'error', inputs: [], name: 'InvalidReserveFactor' },
   { type: 'error', inputs: [], name: 'InvalidRiskParams' },
@@ -3985,6 +4028,15 @@ export const useReadMarketMaxFixedTerm = /*#__PURE__*/ createUseReadContract({
 })
 
 /**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link marketAbi}__ and `functionName` set to `"MAX_SETTLEMENT_BOUNTY"`
+ */
+export const useReadMarketMaxSettlementBounty =
+  /*#__PURE__*/ createUseReadContract({
+    abi: marketAbi,
+    functionName: 'MAX_SETTLEMENT_BOUNTY',
+  })
+
+/**
  * Wraps __{@link useReadContract}__ with `abi` set to __{@link marketAbi}__ and `functionName` set to `"MIN_FIXED_TERM"`
  */
 export const useReadMarketMinFixedTerm = /*#__PURE__*/ createUseReadContract({
@@ -4241,6 +4293,15 @@ export const useReadMarketSeizedCollateral =
   })
 
 /**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link marketAbi}__ and `functionName` set to `"settlementBounty"`
+ */
+export const useReadMarketSettlementBounty =
+  /*#__PURE__*/ createUseReadContract({
+    abi: marketAbi,
+    functionName: 'settlementBounty',
+  })
+
+/**
  * Wraps __{@link useReadContract}__ with `abi` set to __{@link marketAbi}__ and `functionName` set to `"totalBorrows"`
  */
 export const useReadMarketTotalBorrows = /*#__PURE__*/ createUseReadContract({
@@ -4404,6 +4465,15 @@ export const useWriteMarketSetReserveFactor =
 export const useWriteMarketSetRiskParams = /*#__PURE__*/ createUseWriteContract(
   { abi: marketAbi, functionName: 'setRiskParams' },
 )
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link marketAbi}__ and `functionName` set to `"setSettlementBounty"`
+ */
+export const useWriteMarketSetSettlementBounty =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: marketAbi,
+    functionName: 'setSettlementBounty',
+  })
 
 /**
  * Wraps __{@link useWriteContract}__ with `abi` set to __{@link marketAbi}__ and `functionName` set to `"settleMatured"`
@@ -4601,6 +4671,15 @@ export const useSimulateMarketSetRiskParams =
   /*#__PURE__*/ createUseSimulateContract({
     abi: marketAbi,
     functionName: 'setRiskParams',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link marketAbi}__ and `functionName` set to `"setSettlementBounty"`
+ */
+export const useSimulateMarketSetSettlementBounty =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: marketAbi,
+    functionName: 'setSettlementBounty',
   })
 
 /**
@@ -4823,6 +4902,15 @@ export const useWatchMarketSeizedCollateralWithdrawnEvent =
   /*#__PURE__*/ createUseWatchContractEvent({
     abi: marketAbi,
     eventName: 'SeizedCollateralWithdrawn',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link marketAbi}__ and `eventName` set to `"SettlementBountyUpdated"`
+ */
+export const useWatchMarketSettlementBountyUpdatedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: marketAbi,
+    eventName: 'SettlementBountyUpdated',
   })
 
 /**

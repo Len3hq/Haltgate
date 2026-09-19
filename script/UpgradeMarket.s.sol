@@ -11,7 +11,7 @@ import {LenderVault} from "../src/core/LenderVault.sol";
 /// one-time-set and Market's vault reference is immutable.
 ///
 /// Env: EXISTING_MARKET, INTEREST_RATE_MODEL_ADDRESS, TIMELOCK_ADDRESS,
-/// FIXED_LTV, FIXED_RATE.
+/// FIXED_LTV, FIXED_RATE, SETTLEMENT_BOUNTY.
 contract UpgradeMarket is Script {
     function run() external {
         uint256 pk = vm.envUint("DEPLOYER_PRIVATE_KEY");
@@ -35,6 +35,7 @@ contract UpgradeMarket is Script {
         );
         vault.setMarket(address(market));
         market.setFixedParams(vm.envUint("FIXED_LTV"), vm.envUint("FIXED_RATE"));
+        market.setSettlementBounty(vm.envUint("SETTLEMENT_BOUNTY"));
 
         vault.transferOwnership(vm.envAddress("TIMELOCK_ADDRESS"));
         market.transferOwnership(vm.envAddress("TIMELOCK_ADDRESS"));

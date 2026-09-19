@@ -337,4 +337,113 @@ contract MarketFixedTermTest is Test {
         vm.expectRevert(Market.InvalidFixedParams.selector);
         fresh.borrowFixed(10e18, 100e18, 7 days);
     }
+
+    // --- Settlement bounty ------------------------------------------------
+    // settleMatured() is permissionless but pays nothing by default, so without
+    // a cut there is no reason for anyone to call it and the vault goes on
+    // carrying a dead loan at face value.
+
+    function _matureLoan() internal returns (uint256 collateral) {
+        collateral = 10e18;
+        vm.prank(alice);
+        market.borrowFixed(collateral, 500e18, 7 days);
+        vm.warp(block.timestamp + 7 days);
+    }
+
+    function test_SettlementBounty_DefaultsToZero() public {
+        assertEq(market.settlementBounty(), 0, "unset until governance opts in");
+
+        uint256 collateral = _matureLoan();
+        vm.prank(stranger);
+        market.settleMatured(alice);
+
+        assertEq(wNVDAx.balanceOf(stranger), 0, "no cut when unset");
+        assertEq(market.seizedCollateral(), collateral);
+    }
+
+    function test_SettlementBounty_PaysTheCaller() public {
+        vm.prank(owner);
+        market.setSettlementBounty(0.005e18); // 0.5%
+
+        uint256 collateral = _matureLoan();
+        vm.prank(stranger);
+        market.settleMatured(alice);
+
+        uint256 expectedBounty = (collateral * 0.005e18) / 1e18;
+        assertEq(wNVDAx.balanceOf(stranger), expectedBounty, "settler paid in collateral token");
+        assertEq(market.seizedCollateral(), collateral - expectedBounty, "protocol keeps the rest");
+    }
+
+    function test_SettlementBounty_ConservesTheCollateralExactly() public {
+        vm.prank(owner);
+        market.setSettlementBounty(0.0033e18); // deliberately not a round number
+
+        uint256 collateral = _matureLoan();
+        vm.prank(stranger);
+        market.settleMatured(alice);
+
+        // Nothing may be minted or stranded: the split must be exact.
+        assertEq(
+            wNVDAx.balanceOf(stranger) + market.seizedCollateral(), collateral, "bounty + retained == collateral"
+        );
+        assertEq(wNVDAx.balanceOf(address(market)), market.seizedCollateral(), "held balance matches the books");
+    }
+
+    function test_SettlementBounty_RoundsDownToZeroOnDustAndStillSettles() public {
+        vm.prank(owner);
+        market.setSettlementBounty(0.005e18);
+
+        // 100 wei of collateral: 0.5% of it rounds to zero rather than reverting.
+        vm.prank(owner);
+        wNVDAx.mint(stranger, 0);
+        vm.prank(alice);
+        market.borrowFixed(100, 1, 7 days);
+        vm.warp(block.timestamp + 7 days);
+
+        vm.prank(stranger);
+        market.settleMatured(alice);
+
+        assertEq(wNVDAx.balanceOf(stranger), 0, "rounds down, no revert");
+        assertEq(market.seizedCollateral(), 100, "protocol keeps all of it");
+    }
+
+    function test_SettlementBounty_EmitsBountyAndRetainedSeparately() public {
+        vm.prank(owner);
+        market.setSettlementBounty(0.01e18);
+
+        uint256 collateral = _matureLoan();
+        uint256 bounty = (collateral * 0.01e18) / 1e18;
+
+        vm.expectEmit(true, true, false, true, address(market));
+        emit Market.FixedDefaulted(alice, stranger, 500e18, collateral - bounty, bounty);
+        vm.prank(stranger);
+        market.settleMatured(alice);
+    }
+
+    function test_SetSettlementBounty_RevertsAboveCap() public {
+        // Hoisted: reading the getter inside expectRevert would consume it.
+        uint256 aboveCap = market.MAX_SETTLEMENT_BOUNTY() + 1;
+        vm.prank(owner);
+        vm.expectRevert(Market.InvalidBounty.selector);
+        market.setSettlementBounty(aboveCap);
+    }
+
+    function test_SetSettlementBounty_AllowsExactlyTheCap() public {
+        uint256 cap = market.MAX_SETTLEMENT_BOUNTY();
+        vm.prank(owner);
+        market.setSettlementBounty(cap);
+        assertEq(market.settlementBounty(), cap);
+    }
+
+    function test_SetSettlementBounty_OnlyOwner() public {
+        vm.prank(stranger);
+        vm.expectRevert();
+        market.setSettlementBounty(0.005e18);
+    }
+
+    function test_SettlementBounty_StaysFarBelowTheLiquidationBonus() public view {
+        // A settler fronts only gas; a liquidator fronts the debt. The cap has
+        // to reflect that or settling becomes the more profitable action.
+        assertLt(market.MAX_SETTLEMENT_BOUNTY(), market.liquidationBonus(), "settling must not outpay liquidating");
+    }
 }

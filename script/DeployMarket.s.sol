@@ -91,6 +91,9 @@ contract DeployMarket is Script {
 
         // Same governance split as the first market: multisig owns the fast
         // levers (oracle pause, swap fee), timelock owns everything else.
+        d.market.setFixedParams(vm.envUint("FIXED_LTV"), vm.envUint("FIXED_RATE"));
+        d.market.setSettlementBounty(vm.envUint("SETTLEMENT_BOUNTY"));
+
         d.oracle.transferOwnership(vm.envAddress("MULTISIG_ADDRESS"));
         d.halt.transferOwnership(vm.envAddress("TIMELOCK_ADDRESS"));
         d.vault.transferOwnership(vm.envAddress("TIMELOCK_ADDRESS"));

@@ -97,8 +97,18 @@ contract Market is Ownable, ReentrancyGuard {
     /// the borrower is buying rate certainty and freedom from liquidation.
     uint256 public fixedRatePerYear;
 
+    /// @notice Share of the seized collateral paid to whoever calls
+    /// settleMatured(), WAD. settleMatured() is permissionless but hands the
+    /// caller nothing by default, so without this nobody is paid to close a
+    /// defaulted loan and the vault keeps carrying it at full face value.
+    /// Denominated in collateral tokens, so paying it needs no price.
+    uint256 public settlementBounty;
+
     uint256 public constant MIN_FIXED_TERM = 1 days;
     uint256 public constant MAX_FIXED_TERM = 30 days;
+    /// @notice Ceiling on settlementBounty. A settler supplies only gas, unlike
+    /// a liquidator who must front the debt, so this sits far below liquidationBonus.
+    uint256 public constant MAX_SETTLEMENT_BOUNTY = 0.02e18;
 
     /// @notice owner => operator => approved. Like an ERC20 approve: revocable,
     /// and grantable only by the position owner over themselves. Exists so a
@@ -120,9 +130,12 @@ contract Market is Ownable, ReentrancyGuard {
     event OperatorSet(address indexed owner, address indexed operator, bool approved);
     event FixedBorrowed(address indexed user, uint256 collateral, uint256 principal, uint256 owed, uint256 maturity);
     event FixedRepaid(address indexed user, uint256 owed, uint256 collateralReturned);
-    event FixedDefaulted(address indexed user, address indexed by, uint256 principal, uint256 collateralSeized);
+    event FixedDefaulted(
+        address indexed user, address indexed by, uint256 principal, uint256 collateralSeized, uint256 bounty
+    );
     event FixedParamsUpdated(uint256 fixedMaxLTV, uint256 fixedRatePerYear);
     event SeizedCollateralWithdrawn(address indexed to, uint256 amount);
+    event SettlementBountyUpdated(uint256 settlementBounty);
 
     error MarketHalted();
     error NotAuthorized();
@@ -143,6 +156,7 @@ contract Market is Ownable, ReentrancyGuard {
     error NoFixedLoan();
     error NotMatured(uint256 maturity);
     error InvalidFixedParams();
+    error InvalidBounty();
 
     modifier whenSupplyOrBorrowAllowed() {
         if (!haltController.canSupplyOrBorrow()) revert MarketHalted();
@@ -377,6 +391,14 @@ contract Market is Ownable, ReentrancyGuard {
         emit FixedParamsUpdated(newFixedMaxLTV, newFixedRatePerYear);
     }
 
+    /// @notice Sets the settler's cut of seized collateral. Kept separate from
+    /// setFixedParams so an incentive can be tuned without touching risk limits.
+    function setSettlementBounty(uint256 newSettlementBounty) external onlyOwner {
+        if (newSettlementBounty > MAX_SETTLEMENT_BOUNTY) revert InvalidBounty();
+        settlementBounty = newSettlementBounty;
+        emit SettlementBountyUpdated(newSettlementBounty);
+    }
+
     /// @notice Total repayable at maturity for `principal` over `term`. Simple
     /// interest, computed once and then immutable -- that fixity is the product.
     function quoteFixed(uint256 principal, uint256 term) public view returns (uint256 owed) {
@@ -444,9 +466,14 @@ contract Market is Ownable, ReentrancyGuard {
 
         delete fixedLoans[user];
         totalFixedPrincipal -= loan.principal;
-        seizedCollateral += loan.collateral;
 
-        emit FixedDefaulted(user, msg.sender, loan.principal, loan.collateral);
+        // Bounty first, remainder to the protocol. Effects before interaction.
+        uint256 bounty = (loan.collateral * settlementBounty) / WAD;
+        uint256 retained = loan.collateral - bounty;
+        seizedCollateral += retained;
+
+        if (bounty != 0) collateralToken.safeTransfer(msg.sender, bounty);
+        emit FixedDefaulted(user, msg.sender, loan.principal, retained, bounty);
     }
 
     /// @notice Moves claimed collateral out for conversion back into debt token.
