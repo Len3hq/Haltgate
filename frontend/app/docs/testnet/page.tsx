@@ -44,7 +44,7 @@ export default function TestnetPage() {
         rows={[
           ["USDG", "Real testnet USDG, 6 decimals, not 18"],
           ["Collateral tokens", "Mocks, replicating the confirmed wrapped-xStock design"],
-          ["Oracle", "Mock, replicating Backed's confirmed pauseOracle() behaviour"],
+          ["Oracle", "Mock contract, fed real equity prices by a keeper"],
           ["SwapModule", "Stands in for a DEX, priced off the oracle"],
           ["Multisig and timelock", "Real contracts, testnet parameters"],
           ["Audit", "None"],
@@ -69,11 +69,36 @@ export default function TestnetPage() {
         that gap on mainnet needs a corporate-action feed or a market-hours calendar, not just a different address.
       </P>
 
-      <Callout kind="note" title="The oracle needs a nudge">
-        The mocks have no upstream feed, so they age past the 24-hour staleness window if left alone and borrowing stops
-        across every market. A keeper script re-pushes all five prices in one command. If borrowing is failing on every
-        market at once, this is almost certainly why.
+      <H2>Real prices, through a mock oracle</H2>
+      <P>
+        The oracle <Strong>contract</Strong> is a mock, but the prices in it are real. A keeper fetches live equity
+        quotes and pushes them in, so the number shown on a market tracks the reference chart beside it rather than
+        sitting at a made-up constant.
+      </P>
+      <P>
+        This is worth stating precisely: it is a single-key push feed, not a decentralised oracle network. The data is
+        real, the trust model is not. No third-party oracle was available to use instead. Pyth does not deploy on X
+        Layer at all, and Chainlink&apos;s equity coverage there is mainnet-only and pull-based, meaning there is no
+        contract holding a current price to read.
+      </P>
+
+      <Callout kind="note" title="A keeper cannot interfere with a halt">
+        <Code>setPrice()</Code> reverts while the oracle is paused, so no amount of price pushing can overwrite or lift
+        a halt. Only the multisig moves that state. The keeper also skips paused feeds outright, so a market being
+        halted stays visibly frozen while the reference chart keeps moving.
       </Callout>
+
+      <P>
+        Large moves are <Strong>stepped, not forced</Strong>. A single update is capped at 20% deviation to reject
+        suspicious jumps, and rather than loosening that guard the keeper pushes the largest allowed step and converges
+        over successive runs. The guard stays at 20% throughout.
+      </P>
+      <P>
+        Outside market hours the quote is simply the last close. Pushing it anyway keeps the timestamp fresh without
+        inventing movement that did not happen, which matters because the mocks otherwise age past the 24-hour staleness
+        window and borrowing stops across every market. If borrowing is failing everywhere at once, a stale feed is
+        almost certainly why.
+      </P>
 
       <H2>Governance is configured for convenience</H2>
       <UL>

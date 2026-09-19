@@ -244,12 +244,30 @@ To use the live testnet app you'll need testnet OKB for gas ([X Layer faucet](ht
 
 Redeploying? Update [`frontend/lib/contracts.ts`](frontend/lib/contracts.ts) and nothing else needs to change — every component reads addresses from there.
 
+### Keeping the oracles fed
+
+```bash
+python3 script/keeper/push_prices.py --dry-run   # fetch and compare, send nothing
+python3 script/keeper/push_prices.py             # one pass over all five markets
+python3 script/keeper/push_prices.py --converge  # repeat until every market is aligned
+```
+
+Needs a free `FINNHUB_API_KEY` in `.env`. Run it on a schedule, every 15 minutes is a good default:
+
+```
+*/15 * * * * cd /path/to/Haltgate && /usr/bin/python3 script/keeper/push_prices.py >> /tmp/haltgate-keeper.log 2>&1
+```
+
+Without it the mocks age past the 24-hour staleness window and borrowing stops across every market.
+
 ## What's mocked, and why
 
 This project has been deliberate about not overstating what's real:
 
 - **wNVDAx is a mock.** No xStock — raw or wrapped — is confirmed to exist on X Layer *testnet*. The mock replicates the confirmed wrapped-xStock design: non-rebasing, with value accruing through an exchange rate. Real wNVDAx liquidity does exist on X Layer **mainnet**.
-- **The oracle is a mock** replicating Backed's confirmed `pauseOracle()` behavior. It needs a price pushed at least once every 24 hours or borrowing stops protocol-wide on the staleness check, which is correct behaviour but does mean the testnet demo needs a keeper nudge if it sits idle for a day. Whether a live Chainlink feed for wNVDAx is queryable on X Layer specifically was never confirmed, so the pause mechanism is reproduced faithfully rather than assumed.
+- **The oracle contract is a mock, but the prices in it are real.** `script/keeper/push_prices.py` fetches live equity quotes and pushes them in, so the displayed price tracks the reference chart. It is a single-key push feed, not a decentralised oracle: the data is real, the trust model is not. Nothing better was available, since **Pyth does not deploy on X Layer at all** (confirmed against their contract registry: 65 mainnets, 89 testnets, no X Layer entry) and **Chainlink's equity coverage there is mainnet-only and pull-based**, so no contract holds a readable current price.
+- **The keeper cannot interfere with a halt.** `setPrice()` reverts while the oracle is paused, so price pushes can never overwrite or lift one, and the keeper skips paused feeds outright. A halted market stays visibly frozen while the reference chart keeps moving, which is the thesis made visible.
+- **Large price moves are stepped, not forced.** A single update is capped at 20% deviation. Rather than loosen that guard for the initial re-basing, the keeper pushes the largest allowed step and converges over successive runs. Verified: NVDA converged exactly in 2 rounds, AAPL in 3, a simulated 60% crash in 5. Whether a live Chainlink feed for wNVDAx is queryable on X Layer specifically was never confirmed, so the pause mechanism is reproduced faithfully rather than assumed.
 - **USDG is real** testnet USDG (6 decimals, not 18 — confirmed against the deployed contract).
 - **Governance is configured for testnet convenience**: the multisig is 1-of-1 and the timelock delay is 10 minutes. Neither is a meaningful security boundary as deployed; both are real contracts wired correctly, just parameterized for a demo.
 - **Leverage here is directional.** Unlike correlated-asset looping (staking token against its underlying), collateral and debt here move independently, so leverage genuinely amplifies risk in both directions.
