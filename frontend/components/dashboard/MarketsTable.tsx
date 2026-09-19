@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useReadContract } from "wagmi";
 import { erc20Abi } from "viem";
 import {
@@ -10,8 +11,7 @@ import {
   useReadInterestRateModelGetBorrowRatePerSecond,
   useReadInterestRateModelGetSupplyRatePerSecond,
 } from "@/lib/generated";
-import { SHARED, type MarketConfig } from "@/lib/contracts";
-import { useSelectedMarket } from "@/lib/market-context";
+import { MARKETS, SHARED, type MarketConfig } from "@/lib/contracts";
 import { formatApr, formatPrice } from "@/lib/format";
 
 const STATE_LABEL = ["OPEN", "HALTING", "HALTED", "RESUMING", "SETTLING"] as const;
@@ -31,7 +31,7 @@ function utilizationPct(cash: bigint | undefined, borrows: bigint | undefined): 
   return `${(Number((borrows * 10000n) / total) / 100).toFixed(1)}%`;
 }
 
-function MarketRow({ config, selected, onSelect }: { config: MarketConfig; selected: boolean; onSelect: () => void }) {
+function MarketRow({ config }: { config: MarketConfig }) {
   const poll = { refetchInterval: 15_000 };
 
   const { data: state } = useReadHaltControllerState({ address: config.haltController, query: poll });
@@ -62,11 +62,9 @@ function MarketRow({ config, selected, onSelect }: { config: MarketConfig; selec
   const halted = label !== "OPEN";
 
   return (
-    <button
-      onClick={onSelect}
-      className={`grid w-full grid-cols-[1.4fr_0.9fr_0.8fr_0.8fr_0.8fr_0.7fr] items-center gap-2 rounded-[var(--radius-card)] px-3 py-3 text-left text-xs transition-colors ${
-        selected ? "bg-[var(--color-bg-elevated)] ring-1 ring-[var(--color-accent)]" : "hover:bg-[var(--color-bg-elevated)]"
-      }`}
+    <Link
+      href={`/app/${config.key}`}
+      className="grid w-full grid-cols-[1.4fr_0.9fr_0.8fr_0.8fr_0.8fr_0.7fr] items-center gap-2 rounded-[var(--radius-card)] px-3 py-3 text-left text-xs transition-colors hover:bg-[var(--color-bg-elevated)]"
     >
       <span className="min-w-0">
         <span className="block truncate font-medium text-[var(--color-text)]">{config.name}</span>
@@ -88,7 +86,7 @@ function MarketRow({ config, selected, onSelect }: { config: MarketConfig; selec
       <span className="text-[var(--color-success)]">{halted ? "--" : formatApr(supplyRate)}</span>
       <span className="text-[var(--color-accent-blue)]">{halted ? "--" : formatApr(borrowRate)}</span>
       <span className="text-[var(--color-text-muted)]">{utilizationPct(cash, totalBorrows)}</span>
-    </button>
+    </Link>
   );
 }
 
@@ -97,8 +95,6 @@ function MarketRow({ config, selected, onSelect }: { config: MarketConfig; selec
 /// status. Seeing one stock HALTED while the rest keep trading is the clearest
 /// demonstration that halts are per-asset rather than protocol-wide.
 export function MarketsTable() {
-  const { market, setMarketKey, markets } = useSelectedMarket();
-
   return (
     <div className="rounded-[var(--radius-card-lg)] border border-[var(--color-border)] bg-[var(--color-bg-card)] p-4">
       <div className="flex items-baseline justify-between">
@@ -118,8 +114,8 @@ export function MarketsTable() {
       </div>
 
       <div className="space-y-1">
-        {markets.map((m) => (
-          <MarketRow key={m.key} config={m} selected={m.key === market.key} onSelect={() => setMarketKey(m.key)} />
+        {MARKETS.map((m) => (
+          <MarketRow key={m.key} config={m} />
         ))}
       </div>
     </div>

@@ -10,6 +10,7 @@ import {
   useWriteHaltControllerForceSettle,
 } from "@/lib/generated";
 
+import { useNow } from "@/lib/use-now";
 import { getErrorMessage } from "@/lib/errors";
 import { TxStatus } from "@/components/dashboard/TxStatus";
 import { useMarketContracts } from "@/lib/market-context";
@@ -53,9 +54,9 @@ const STATE_CONFIG = {
 
 /// A guarantee that capital can't be locked up forever only reassures if you
 /// can see when it kicks in -- and act on it once it does.
-function settlementStatus(availableAt: bigint | undefined): { message: string; unlocked: boolean } | null {
+function settlementStatus(availableAt: bigint | undefined, now: number): { message: string; unlocked: boolean } | null {
   if (availableAt === undefined || availableAt === 0n) return null;
-  const secondsLeft = Number(availableAt) - Math.floor(Date.now() / 1000);
+  const secondsLeft = Number(availableAt) - now;
   if (secondsLeft <= 0) {
     return { message: "This halt has run past its limit. Anyone can now open settlement so lenders can withdraw.", unlocked: true };
   }
@@ -78,11 +79,12 @@ export function HaltStatusBanner() {
     query: { refetchInterval: 30_000 },
   });
 
+  const now = useNow();
   const label = state === undefined ? "OPEN" : (STATE_LABEL[state] ?? "OPEN");
   // Only runs while the market is restricted but not yet settled: once it's
   // SETTLING the deadline has passed, and when OPEN no clock is running.
   const settlement =
-    label === "HALTING" || label === "HALTED" || label === "RESUMING" ? settlementStatus(settlementAvailableAt) : null;
+    label === "HALTING" || label === "HALTED" || label === "RESUMING" ? settlementStatus(settlementAvailableAt, now) : null;
   const canSettle = settlement?.unlocked === true;
 
   const simulate = useSimulateHaltControllerForceSettle({

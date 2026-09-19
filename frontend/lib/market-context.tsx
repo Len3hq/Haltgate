@@ -1,23 +1,23 @@
 "use client";
 
-import { createContext, useContext, useMemo, useState } from "react";
-import { MARKETS, marketContracts, type MarketConfig } from "@/lib/contracts";
+import { createContext, useContext, useMemo } from "react";
+import { MARKETS, marketContracts, marketByKey, type MarketConfig } from "@/lib/contracts";
 
 type MarketContextValue = {
   market: MarketConfig;
-  setMarketKey: (key: string) => void;
   markets: readonly MarketConfig[];
   contracts: ReturnType<typeof marketContracts>;
 };
 
 const MarketContext = createContext<MarketContextValue | null>(null);
 
-export function MarketProvider({ children }: { children: React.ReactNode }) {
-  const [key, setMarketKey] = useState(MARKETS[0].key);
+/// Driven by the route segment rather than local state -- the URL is the
+/// single source of truth for which market is open.
+export function MarketProvider({ marketKey, children }: { marketKey: string; children: React.ReactNode }) {
   const value = useMemo(() => {
-    const market = MARKETS.find((m) => m.key === key) ?? MARKETS[0];
-    return { market, setMarketKey, markets: MARKETS, contracts: marketContracts(market) };
-  }, [key]);
+    const market = marketByKey(marketKey);
+    return { market, markets: MARKETS, contracts: marketContracts(market) };
+  }, [marketKey]);
 
   return <MarketContext.Provider value={value}>{children}</MarketContext.Provider>;
 }
@@ -29,12 +29,7 @@ function useMarketContext(): MarketContextValue {
 }
 
 /// Same shape the old module-level CONTRACTS constant had, so components read
-/// addresses exactly as before -- they just resolve to the selected market.
+/// addresses exactly as before -- they just resolve to the routed market.
 export function useMarketContracts() {
   return useMarketContext().contracts;
-}
-
-export function useSelectedMarket() {
-  const { market, setMarketKey, markets } = useMarketContext();
-  return { market, setMarketKey, markets };
 }

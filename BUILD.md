@@ -278,19 +278,19 @@ Five isolated markets live: **NVIDIA, Tesla, Apple, Microsoft, S&P 500 ETF**. Ha
 
 ---
 
-### Per-market detail pages, modelled on Kamino — planned, not started
+### Per-market detail pages, modelled on Kamino — ✅ done, 2026-09-19
 
 Decided 2026-09-18 from screenshots of Kamino's live Earn / Borrow / Multiply pages and their detail views. Recorded here rather than built, so the decisions don't have to be re-derived.
 
 **What the screenshots settled.** Kamino routes to detail pages (breadcrumb + back arrow), it does not use modals. Three things already built here independently match theirs: the interest-rate-vs-utilization chart, a leverage slider bounded *below* the theoretical max (they show "Max Leverage 2.9x" but cap the slider at 2.7x), and collapsible per-market rows whose header carries collateral / debt / borrow APY / market size. Worth noting they also treat **xStocks as a first-class filter category**.
 
 **Adopt:**
-- [ ] `/app` as markets index, `/app/[market]` as detail page, with breadcrumb and back.
-- [ ] A **persistent five-market status strip** in the header on every page. Routing would otherwise hide the "NVDA halted while borrowing TSLA" moment, which is the whole reason five markets exist.
-- [ ] Detail skeleton from their reserve page: header (name, price, halt badge, oracle), stat row, `Overview | My Position` tab split, sticky right-hand action sidebar with Half/Max.
-- [ ] Add **Liquidity Available** as a headline stat. It's the actual binding constraint here — 15 USDG per market is what stops a leverage loop — and it's currently buried.
-- [ ] Promote `RateCurveChart` out of the sidebar onto the detail page, where Kamino's equivalent sits.
-- [ ] **Asset Details** section: market, vault, oracle, collateral and swap-module addresses, each linked to OKLink. Kamino uses this slot for websites and audits; for a testnet submission it does something more useful — lets a judge verify every claim on-chain in one click.
+- [x] `/app` as markets index, `/app/[market]` as detail page, with breadcrumb and back.
+- [x] A **persistent five-market status strip** in the header on every page. Routing would otherwise hide the "NVDA halted while borrowing TSLA" moment, which is the whole reason five markets exist.
+- [x] Detail skeleton from their reserve page: header (name, price, halt badge, oracle), stat row, `Overview | My Position` tab split, sticky right-hand action sidebar with Half/Max.
+- [x] Add **Liquidity Available** as a headline stat. It's the actual binding constraint here — 15 USDG per market is what stops a leverage loop — and it's currently buried.
+- [x] Promote `RateCurveChart` out of the sidebar onto the detail page, where Kamino's equivalent sits.
+- [x] **Asset Details** section: market, vault, oracle, collateral and swap-module addresses, each linked to OKLink. Kamino uses this slot for websites and audits; for a testnet submission it does something more useful — lets a judge verify every claim on-chain in one click.
 
 **Replace rather than copy.** Kamino fills detail pages with utilization history. The same space here should hold a **Halt & Settlement panel**: current state, time in state, what's allowed vs blocked right now, interest-freeze status, settlement countdown and trigger — plus **halt history reconstructed from `StateChanged` events**, which is the one piece of genuine history this protocol has and the direct analogue of their utilization chart.
 
@@ -298,7 +298,15 @@ Decided 2026-09-18 from screenshots of Kamino's live Earn / Borrow / Multiply pa
 
 **One deliberate divergence.** Kamino's top nav is product-first (Earn / Borrow / Multiply across all markets). Stay **market-first** — pick a stock, then act. They have 35 markets so product-level entry points are necessary wayfinding; with five that's an extra hop for nothing, and market-first keeps halt status at the top of the hierarchy where the differentiator lives.
 
-**Sequencing when picked up:** routing and page shell first (verify nothing breaks), then move existing panels across, then the Halt & Settlement panel, then halt history and asset details last since they're purely additive. Largest frontend piece yet — new surface rather than rewiring existing surface.
+**Built 2026-09-19.** All five markets prerender as static routes (`/app/nvda` … `/app/spy`); an unknown key 404s. Verified each route renders its own market by checking both the `<h1>` and the first contract address in its Contracts panel against the registry — proving routing resolves through to the on-chain reads, not just the heading.
+
+Two things the build caught that are worth recording:
+- `params` is a **Promise** in this Next.js version and must be awaited. The project's own `AGENTS.md` warns that this version has breaking changes; reading `node_modules/next/dist/docs/` first is what avoided a silent break.
+- The faucet is per-market, so `TestnetTools` couldn't sit on the market **index** (no market in scope — the prerender failed on it). Moved to the detail sidebar, which is the better home anyway: you claim a stock's collateral on that stock's page.
+
+Also fixed a real bug while here, not just lint: `Date.now()` was being read during render for the settlement countdown, so it only updated when an unrelated query happened to re-render the component. Replaced with a `useNow()` timer hook in both the panel and the halt banner.
+
+**Not carried over:** the old single-page dashboard is gone; `MarketsTable` rows are links rather than selection, and `useSelectedMarket` was dropped as dead once nothing selected in place.
 
 ---
 
