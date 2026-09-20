@@ -40,6 +40,10 @@ except AttributeError:  # Python < 3.7
 
 WAD = 10**18
 BPS = 10_000
+# Market rejects a price older than 24h. Refresh well before that even when the
+# quote has not moved: the timestamp is what keeps borrowing alive, and outside
+# market hours the price is identical for days at a time.
+REFRESH_AFTER = 6 * 3600
 RPC = os.environ.get("RPC_URL", "https://testrpc.xlayer.tech/terigon")
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -85,6 +89,12 @@ def load_env():
         if os.environ.get(key):
             env[key] = os.environ[key].strip()
     return env
+
+
+def chain_time():
+    out = subprocess.run(["cast", "block", "latest", "--field", "timestamp", "-r", RPC],
+                         capture_output=True, text=True, timeout=60)
+    return int(out.stdout.strip())
 
 
 def cast_call(target, sig, *args):
@@ -158,6 +168,7 @@ def main():
     max_rounds = 8 if converge else 1
     for round_no in range(1, max_rounds + 1):
         pending = 0
+        now_ts = chain_time()
         print(f"{'symbol':<7}{'on-chain':>11}{'target':>11}{'pushed':>11}  status")
 
         for symbol, env_key in MARKETS:
@@ -170,6 +181,7 @@ def main():
                 raw = cast_call(oracle, "latestPrice()(uint256,uint256,bool)")
                 parts = [p.split()[0] for p in raw.splitlines()]
                 current = int(parts[0])
+                updated_at = int(parts[1])
                 paused = parts[2].lower() == "true"
             except Exception as exc:
                 print(f"{symbol:<7}{'':>33}  READ FAILED: {exc}")
@@ -196,11 +208,23 @@ def main():
             if not aligned:
                 pending += 1
 
-            note = "aligned" if aligned else f"stepped (cap {max_bps / 100:.0f}%)"
-            print(f"{symbol:<7}{current / WAD:>11.2f}{target / WAD:>11.2f}{push / WAD:>11.2f}  "
-                  f"{'would push, ' if dry_run else ''}{note}")
+            # The price moving is only one reason to send. The other is the
+            # clock: an unchanged price still has to be re-published or the
+            # feed ages out and borrowing stops on this market.
+            age = now_ts - updated_at
+            stale_soon = age >= REFRESH_AFTER
+            if push == current and not stale_soon:
+                print(f"{symbol:<7}{current / WAD:>11.2f}{target / WAD:>11.2f}{'':>11}  "
+                      f"aligned, {age // 60}m old, no send needed")
+                continue
 
-            if dry_run or push == current:
+            reason = "aligned" if aligned else f"stepped (cap {max_bps / 100:.0f}%)"
+            if push == current:
+                reason = f"refresh only, was {age // 3600}h old"
+            print(f"{symbol:<7}{current / WAD:>11.2f}{target / WAD:>11.2f}{push / WAD:>11.2f}  "
+                  f"{'would push, ' if dry_run else ''}{reason}")
+
+            if dry_run:
                 continue
 
             try:
