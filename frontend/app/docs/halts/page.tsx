@@ -65,6 +65,39 @@ export default function HaltsPage() {
         means a stale feed blocks borrowing even if nobody has synced yet.
       </P>
 
+      <H2>How the corporate action itself is spotted</H2>
+      <P>
+        This is the honest soft spot, so it is worth stating plainly rather than glossing.{" "}
+        <Strong>Today the event is spotted by a human.</Strong> Somebody calls <Code>pauseOracle()</Code> through the
+        multisig, and from that point everything is trustless: anyone can call <Code>sync()</Code> to propagate it, so
+        nobody can sit on a halt once the feed is paused.
+      </P>
+      <P>
+        One layer is genuinely automatic regardless. The staleness check blocks borrowing on a feed that has stopped
+        publishing whether or not anybody noticed or synced. Its limitation is precision rather than reliability: a
+        stale feed cannot be distinguished from a weekend.
+      </P>
+      <P>
+        The route to automating detection exists and is not hypothetical. CF Benchmarks publishes an xStocks corporate
+        action feed with a two-stage <Strong>Pending</Strong> then <Strong>Effective</Strong> lifecycle, which maps onto
+        HALTING and RESUMING almost exactly. It is an off-chain data product, so bringing it on-chain still needs a
+        keeper: that moves the trust from a human watching the news to a keeper watching a regulated feed, which is
+        better without being trustless.
+      </P>
+
+      <Callout kind="note" title="HaltGate is the response, not the detector">
+        Detection and response are separate problems. Several vendors sell detection. What this protocol implements is
+        what a lending market should actually <em>do</em> once a price cannot be trusted, which is the part that is
+        deployed, tested and verifiable on-chain. The detector is a swappable input.
+      </Callout>
+
+      <P>
+        Worth knowing: not every corporate action needs a halt at all. xStocks handles splits and dividends through a
+        rebasing multiplier, so a two-for-one split doubles token balances while halving the price and passes through
+        cleanly if a protocol reads both consistently. The window a halt actually protects is the narrower one where
+        price and multiplier disagree.
+      </P>
+
       <Callout kind="note" title="Two layers, on purpose">
         The state machine is the deliberate, observable signal. The staleness check is the backstop that does not depend
         on anyone doing anything. Either one is enough to stop a borrow.

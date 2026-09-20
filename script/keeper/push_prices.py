@@ -23,6 +23,7 @@ Env (from .env): FINNHUB_API_KEY, DEPLOYER_PRIVATE_KEY, MULTISIG_ADDRESS,
 ORACLE_ADDRESS, TSLA_ORACLE, AAPL_ORACLE, MSFT_ORACLE, SPY_ORACLE, RPC_URL.
 """
 
+import fcntl
 import json
 import os
 import subprocess
@@ -50,6 +51,19 @@ MARKETS = [
     ("MSFT", "MSFT_ORACLE"),
     ("SPY", "SPY_ORACLE"),
 ]
+
+
+def acquire_lock():
+    """A pass takes minutes and cron fires every 15. Two overlapping runs would
+    interleave transactions from the same key and lose the nonce race against
+    each other, so a second run exits rather than fights. flock releases itself
+    if the process dies, so a crash cannot wedge the keeper permanently."""
+    fh = open(os.path.join("/tmp", "haltgate-keeper.lock"), "w")
+    try:
+        fcntl.flock(fh, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        sys.exit("another keeper run is still in progress, exiting")
+    return fh  # held for the process lifetime
 
 
 def load_env():
@@ -123,6 +137,7 @@ def main():
     dry_run = "--dry-run" in sys.argv
     converge = "--converge" in sys.argv
 
+    lock = acquire_lock()  # noqa: F841 -- must stay referenced for the process lifetime
     env = load_env()
     api_key = env.get("FINNHUB_API_KEY", "").strip()
     if not api_key:
