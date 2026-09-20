@@ -1,0 +1,50 @@
+# Feeds real equity prices into the mock oracles so the displayed price tracks
+# the reference chart, and so the feeds never age past Market's 24h staleness
+# window (which would stop borrowing on every market at once).
+#
+# Runs here rather than on a laptop: the keeper has to keep running whether or
+# not anyone's machine is awake.
+name: Oracle keeper
+
+on:
+  schedule:
+    # Hourly. Well inside the 24h staleness window, and ~36 runner-minutes a
+    # day, which fits the free tier for a private repo. For a tighter match to
+    # the chart use "*/15 * * * *", but on a private repo that is ~4,300
+    # minutes a month and will exceed the 2,000-minute free allowance.
+    - cron: "0 * * * *"
+  workflow_dispatch: # manual run, for testing the secrets are wired correctly
+
+concurrency:
+  # A run can take a few minutes. Overlapping runs would interleave
+  # transactions from the same key and lose the nonce race to each other.
+  group: oracle-keeper
+  cancel-in-progress: false
+
+jobs:
+  push-prices:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # The keeper drives `cast` for the on-chain calls.
+      - uses: foundry-rs/foundry-toolchain@v1
+
+      - name: Push prices
+        env:
+          FINNHUB_API_KEY: ${{ secrets.FINNHUB_API_KEY }}
+          DEPLOYER_PRIVATE_KEY: ${{ secrets.DEPLOYER_PRIVATE_KEY }}
+          RPC_URL: https://testrpc.xlayer.tech/terigon
+          # Public addresses, deliberately not secrets.
+          MULTISIG_ADDRESS: "0x46Af2FD4bF206321Bcd24A58F4497B2681C7716F"
+          ORACLE_ADDRESS: "0x6092743d17D892c2C6033CF323783Bd7ec5952D4"
+          TSLA_ORACLE: "0xa15Be4B64b08EEfcc85ad375AD391A167DEdF3E2"
+          AAPL_ORACLE: "0x365262ae56532C1594B42B6C944768E1aAF9caf6"
+          MSFT_ORACLE: "0xe722cc0b1C5EadAa69a5deE603954AC71753cc19"
+          SPY_ORACLE: "0xD1405dba838e4d01Db8581441f47Cd57D49F7f8E"
+        run: python3 script/keeper/push_prices.py

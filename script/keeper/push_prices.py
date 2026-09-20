@@ -67,15 +67,23 @@ def acquire_lock():
 
 
 def load_env():
+    """Real environment variables win over .env, and a missing .env is fine.
+    Locally the file is the source; on a CI runner there is no .env at all and
+    everything arrives as secrets, so the same script runs in both places."""
     env = {}
     path = os.path.join(REPO, ".env")
-    with open(path) as fh:
-        for line in fh:
-            line = line.strip()
-            if not line or line.startswith("#") or "=" not in line:
-                continue
-            k, v = line.split("=", 1)
-            env[k.strip()] = v.strip()
+    if os.path.exists(path):
+        with open(path) as fh:
+            for line in fh:
+                line = line.strip()
+                if not line or line.startswith("#") or "=" not in line:
+                    continue
+                k, v = line.split("=", 1)
+                env[k.strip()] = v.strip()
+    for key in ("FINNHUB_API_KEY", "DEPLOYER_PRIVATE_KEY", "MULTISIG_ADDRESS",
+                "ORACLE_ADDRESS", "TSLA_ORACLE", "AAPL_ORACLE", "MSFT_ORACLE", "SPY_ORACLE"):
+        if os.environ.get(key):
+            env[key] = os.environ[key].strip()
     return env
 
 

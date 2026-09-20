@@ -29,6 +29,7 @@ import { AssetDetails } from "@/components/dashboard/AssetDetails";
 import { PriceChart } from "@/components/dashboard/PriceChart";
 import { InfoTip } from "@/components/dashboard/InfoTip";
 import { TestnetTools } from "@/components/dashboard/TestnetTools";
+import { GetStarted } from "@/components/dashboard/GetStarted";
 
 const STATE_LABEL = ["OPEN", "HALTING", "HALTED", "RESUMING", "SETTLING"] as const;
 
@@ -200,6 +201,7 @@ function DetailBody({ marketKey }: { marketKey: string }) {
 
         <div className="dash-fade-in dash-fade-in-2">
           <div className="space-y-4 lg:sticky lg:top-24">
+            <GetStarted />
             <DashboardTabs />
             <TestnetTools />
           </div>

@@ -280,6 +280,16 @@ Detailed plan and status in [`BUILD.md`](BUILD.md).
 - **Converting seized collateral back to cash.** `settleMatured()` leaves the protocol holding collateral while the vault is owed USDG, and the share price stays understated until governance sells it. `withdrawSeizedCollateral()` hands it over for that; routing it through the `SwapModule` automatically is the obvious next step, and was left out on purpose because an automatic sale reads a price, which is the dependency this loan type exists to avoid.
 - **CF Benchmarks corporate-action feed** — a real third-party CA feed exists with a documented methodology, a genuine upgrade path beyond a manually-toggled schedule
 
+## Prior art and attribution
+
+**[Corporate Action Guard](https://github.com/gnanam1990/corporate-action-guard)** is a real, third-party, unaudited project live on X Layer testnet doing an adjacent thing: fail-closed preflight and receipt checking around corporate-action windows. HaltGate follows its **gating pattern** rather than rebuilding the idea from scratch, and it is named here as a reference implementation rather than quietly borrowed from.
+
+The mechanisms differ. Its gate is keyed to a receipt and schedule model; HaltGate's is keyed to the oracle's own pause flag. Its scope is the gate alone, with no borrowing, leverage, liquidation or vault logic. Treat it as prior art for the general "fail closed during a corporate action" idea, not as a dependency or a competitor.
+
+**[CF Benchmarks](https://www.cfbenchmarks.com/documentation/products/xstocks/corporate-actions-feed)** publishes the xStocks Corporate Action Feed, whose Pending and Effective lifecycle maps onto HALTING and RESUMING. It is the route to automating detection, and it is not integrated here.
+
+**[Jupiter Offerbook](https://docs.jup.ag/user-docs/earn/offerbook)** is the reference for fixed-term settlement behaviour, checked directly against their documentation rather than assumed. **Kamino** is the reference for the interface, and **Notional** and **Term Finance** are the pooled fixed-rate alternative that was considered and rejected.
+
 ## Mainnet migration
 
 Migration, not a rebuild — X Layer mainnet is the same zkEVM environment, and the core contracts port over unchanged. What needs real work is everything touching the outside world: the real xStock token, DEX routing instead of an internal priced swap, risk parameters derived from real volatility data, real multisig signers, and an audit.
