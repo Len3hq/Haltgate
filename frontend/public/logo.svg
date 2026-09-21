@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" role="img" aria-label="HaltGate">
+  <!-- Three squares stepping down, traced from the source mark: each square is
+       4 units on a 24 grid, offset 4 across and 4 down. Transparent so it sits
+       on any surface; the favicon variant carries the dark plate. -->
+  <rect x="14" y="6" width="4" height="4" fill="#34E08A"/>
+  <rect x="10" y="10" width="4" height="4" fill="#F2F1ED"/>
+  <rect x="6" y="14" width="4" height="4" fill="#F2F1ED"/>
+</svg>

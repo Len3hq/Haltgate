@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 import { DocsSidebar } from "@/components/docs/DocsSidebar";
+import { Logo } from "@/components/Logo";
 
 export const metadata: Metadata = {
   title: "Docs | HaltGate",
@@ -14,7 +15,7 @@ export default function DocsLayout({ children }: { children: React.ReactNode }) 
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4 sm:px-6">
           <div className="flex items-center gap-3">
             <Link href="/" className="flex items-center gap-2">
-              <span className="h-6 w-6 rounded-full bg-[var(--color-accent)]" />
+              <Logo className="h-6 w-6" />
               <span className="font-[family-name:var(--font-display)] text-lg font-semibold tracking-tight">HaltGate</span>
             </Link>
             <span className="rounded-[var(--radius-pill)] bg-[var(--color-bg-elevated)] px-2 py-0.5 text-[11px] font-medium text-[var(--color-text-muted)]">

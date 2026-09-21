@@ -10,7 +10,6 @@ const PRODUCTS = [
   { href: "/app", label: "Markets" },
   { href: "/app/fixed", label: "Fixed Term" },
   { href: "/app/multiply", label: "Multiply" },
-  { href: "/docs", label: "Docs" },
 ];
 
 function isActive(pathname: string, href: string): boolean {

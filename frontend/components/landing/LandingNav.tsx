@@ -1,11 +1,12 @@
 import Link from "next/link";
+import { Logo } from "@/components/Logo";
 
 export function LandingNav() {
   return (
     <header className="sticky top-0 z-40 border-b border-[var(--color-border-subtle)] bg-[var(--color-bg)]/70 backdrop-blur-md">
       <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4 sm:px-6">
         <Link href="/" className="flex items-center gap-2">
-          <span className="h-6 w-6 rounded-full bg-[var(--color-accent)]" />
+          <Logo className="h-6 w-6" />
           <span className="font-[family-name:var(--font-display)] text-lg font-semibold tracking-tight">HaltGate</span>
         </Link>
         <nav className="hidden items-center gap-8 text-sm text-[var(--color-text-muted)] md:flex">
