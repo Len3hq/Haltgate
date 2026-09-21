@@ -128,6 +128,11 @@ contract LeverageZap is ReentrancyGuard {
         collateralOut = swapModule.swapDebtForCollateral(borrowAmount, address(this));
         collateralToken.forceApprove(address(market), collateralOut);
         market.supplyFor(msg.sender, collateralOut);
+        // Leave nothing standing. `market` is caller-supplied and only checked
+        // for a matching token pair, so any allowance surviving this call is
+        // one an arbitrary address could draw on later.
+        collateralToken.forceApprove(address(market), 0);
+        debtToken.forceApprove(address(swapModule), 0);
     }
 
     /// @dev Next pass's borrow: enough to close the gap to `targetCollateral`,
@@ -187,6 +192,7 @@ contract LeverageZap is ReentrancyGuard {
         collateralToken.safeTransferFrom(msg.sender, address(this), amount);
         collateralToken.forceApprove(address(market), amount);
         market.supplyFor(msg.sender, amount);
+        collateralToken.forceApprove(address(market), 0); // see _loopOnce
     }
 
     function _toWad(uint256 amount, uint8 decimals) internal pure returns (uint256) {

@@ -132,7 +132,7 @@ Five isolated markets are live. Each has its own collateral token, faucet, oracl
 | Contract | Address |
 |---|---|
 | USDG (real testnet) | `0xF0863D7A29a55d0c4263c11bFac754312ff078DF` |
-| InterestRateModel | `0x5F644BDF606cdb770c76bb01d6c3B83EA9F21845` |
+| InterestRateModel | `0xC9Dcc5A359F868c4F13BBd658E4e88B1228e1bFD` |
 | LeverageZap | `0xfCB4A5C042fE54e04A7F9027992f06F40F4F55be` |
 | Multisig | `0x46Af2FD4bF206321Bcd24A58F4497B2681C7716F` |
 | Timelock | `0x6e4591c9A44C28f29F570B19ab82781BA136305F` |
@@ -141,8 +141,8 @@ Five isolated markets are live. Each has its own collateral token, faucet, oracl
 
 | Contract | Address |
 |---|---|
-| Market | `0x446D583F4fF636A3869940Ff4082D979d7bA3B0e` |
-| LenderVault | `0xAC4F12f02b914A0F35B8bB2955F0052eBF32d789` |
+| Market | `0x5Ab50694d35Cb078Aa827E819cf3EC8AcCadd022` |
+| LenderVault | `0x7B43744576dBf2C711bE16035FCD812F1A6e4F91` |
 | HaltController | `0x4C4AC6fd104Eb8CE9887a0e7Da757f86d08EE807` |
 | Oracle (mock) | `0x6092743d17D892c2C6033CF323783Bd7ec5952D4` |
 | SwapModule | `0x3797E011686e756EFfb8619B5faDCE261BA59680` |
@@ -153,8 +153,8 @@ Five isolated markets are live. Each has its own collateral token, faucet, oracl
 
 | Contract | Address |
 |---|---|
-| Market | `0x302D52a876e6e81Fc59c7D31704E2e332E608fC1` |
-| LenderVault | `0x4C7f2B1Cea3bEb9cD9dd9d7BbA20947810EEC73F` |
+| Market | `0x7497EDBb50Fe8F2B71CDC9e98656966eAf6a60BE` |
+| LenderVault | `0xbCf783A460205BE1c1C8dF92C4cC2EBa020C2B9E` |
 | HaltController | `0x0c69EF3ce2fBaCcadAd1d1dbE88C315dB491d649` |
 | Oracle (mock) | `0xa15Be4B64b08EEfcc85ad375AD391A167DEdF3E2` |
 | SwapModule | `0x10510b248972732b565b333d0Ccfa60493607C21` |
@@ -165,8 +165,8 @@ Five isolated markets are live. Each has its own collateral token, faucet, oracl
 
 | Contract | Address |
 |---|---|
-| Market | `0xb34F42528E3FF50D40B0B43fb56919B28c57aDCC` |
-| LenderVault | `0x51b0c65Cd795d508a23c7BAf91859CF24f0CAca9` |
+| Market | `0xA16aCbCe117CF87019c053039c18E9b3b7efDc73` |
+| LenderVault | `0xa16DaB259511dea662Cbf9fc8C68f6A84508F226` |
 | HaltController | `0x1567e8F41DE5f8a67d3aF33214129AB310149C9A` |
 | Oracle (mock) | `0x365262ae56532C1594B42B6C944768E1aAF9caf6` |
 | SwapModule | `0xD1ff0651B9e4111cAaA5C33F3150DdE0451B8019` |
@@ -177,8 +177,8 @@ Five isolated markets are live. Each has its own collateral token, faucet, oracl
 
 | Contract | Address |
 |---|---|
-| Market | `0xccDD95fA4aB617202F413EFc3e1C959cdA410bBf` |
-| LenderVault | `0x7BC9fc391ADf7aD3EE034e9b830aa9F26288f826` |
+| Market | `0xC9A951d7cC8ae123847288907519ea9FcbCe8492` |
+| LenderVault | `0x51f9c6881bb046F64C4BDe379d071719f1eb42c7` |
 | HaltController | `0x4FF088755DcB27F88C5515b17F3263CCB3f7E81c` |
 | Oracle (mock) | `0xe722cc0b1C5EadAa69a5deE603954AC71753cc19` |
 | SwapModule | `0xb4681F6945038E5a7Be56C0aFec01ee8A5c2B0c6` |
@@ -189,8 +189,8 @@ Five isolated markets are live. Each has its own collateral token, faucet, oracl
 
 | Contract | Address |
 |---|---|
-| Market | `0xb8213d2051b75602E435d249fAe1c5E88e571ee5` |
-| LenderVault | `0xfBda6fe34c4827c0ac1267390f5e45FcA75Fc90B` |
+| Market | `0x5aeAfD27D4adafd1554d3F78b59AB7a255898c47` |
+| LenderVault | `0xFbCC82c5BC3Cd21170288B37A911D3DF6317B28a` |
 | HaltController | `0x78aDcB61837Dd42C1AED161F0B3Fd42C57A7ca69` |
 | Oracle (mock) | `0xD1405dba838e4d01Db8581441f47Cd57D49F7f8E` |
 | SwapModule | `0x4c26B0CB20a985049C7a9817aAFd93C6c93cADd2` |

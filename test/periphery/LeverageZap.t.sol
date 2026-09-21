@@ -166,4 +166,33 @@ contract LeverageZapTest is Test {
         vm.prank(alice);
         zap.leverage(market, swap, 10e18, borrowAmount, 0);
     }
+
+    /// Audit (2026-09-21): `market` is caller-supplied and only validated for a
+    /// matching token pair, so any allowance the zap leaves standing is one an
+    /// arbitrary address could draw on later. It must end every call at zero.
+    function test_ZapLeavesNoStandingApprovals() public {
+        vm.prank(alice);
+        market.setOperator(address(zap), true);
+        vm.prank(alice);
+        wNVDAx.approve(address(zap), type(uint256).max);
+
+        vm.prank(alice);
+        zap.leverage(market, swap, 5e18, 100e6, 0);
+
+        assertEq(wNVDAx.allowance(address(zap), address(market)), 0, "collateral allowance must be cleared");
+        assertEq(usdg.allowance(address(zap), address(swap)), 0, "debt allowance must be cleared");
+    }
+
+    function test_ZapHoldsNoResidueAfterLeverage() public {
+        vm.prank(alice);
+        market.setOperator(address(zap), true);
+        vm.prank(alice);
+        wNVDAx.approve(address(zap), type(uint256).max);
+
+        vm.prank(alice);
+        zap.leverage(market, swap, 5e18, 100e6, 0);
+
+        assertEq(wNVDAx.balanceOf(address(zap)), 0, "no collateral left behind");
+        assertEq(usdg.balanceOf(address(zap)), 0, "no debt token left behind");
+    }
 }

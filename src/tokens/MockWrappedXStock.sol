@@ -26,6 +26,12 @@ contract MockWrappedXStock is ERC20, Ownable {
         return _DECIMALS;
     }
 
+    /// @notice NOT CONSULTED BY THE PROTOCOL. Market prices raw token amounts
+    /// straight off the oracle, because the oracle's convention is to price
+    /// this token directly. Reading the rate here as well would double-count.
+    /// Kept because it documents the real wrapped-xStock design, where value
+    /// accrues through the rate rather than through rebasing balances.
+    ///
     /// @notice Value represented by `shares` tokens at the current exchange rate.
     /// Balances never change from this — only the rate does, matching the
     /// confirmed non-rebasing wrapped-xStock design.
