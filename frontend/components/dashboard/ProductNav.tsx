@@ -6,33 +6,43 @@ import { usePathname } from "next/navigation";
 /// Top-level product surfaces. Fixed Term and Multiply are separate products
 /// with their own risk models and parameters, not modes on a position, so they
 /// get their own routes rather than sitting behind a tab with no URL.
+///
+/// Network-aware. These links were hardcoded to the testnet routes, so
+/// clicking a product while viewing mainnet silently threw you back onto
+/// testnet. Changing network is the switcher's job and nothing else's.
 const PRODUCTS = [
-  { href: "/app", label: "Markets" },
-  { href: "/app/fixed", label: "Fixed Term" },
-  { href: "/app/multiply", label: "Multiply" },
+  { segment: "", label: "Markets" },
+  { segment: "/fixed", label: "Fixed Term" },
+  { segment: "/multiply", label: "Multiply" },
 ];
 
-function isActive(pathname: string, href: string): boolean {
-  if (href === "/app") {
-    // Markets owns /app and /app/<market>, but not the other products'.
-    // /app/mainnet is a network view, not a product, so it owns none of these.
-    const OTHER = ["/app/fixed", "/app/multiply", "/app/mainnet"];
-    return pathname === "/app" || (pathname.startsWith("/app/") && !OTHER.some((p) => pathname.startsWith(p)));
-  }
-  return pathname.startsWith(href);
-}
+const MAINNET_ROOT = "/app/mainnet";
 
 export function ProductNav() {
   const pathname = usePathname();
+  const onMainnet = pathname.startsWith(MAINNET_ROOT);
+  const root = onMainnet ? MAINNET_ROOT : "/app";
+
+  const hrefFor = (segment: string) => (segment === "" ? root : `${root}${segment}`);
+
+  function isActive(segment: string): boolean {
+    if (segment !== "") return pathname.startsWith(hrefFor(segment));
+
+    // "Markets" owns the root and its market detail pages, but not the other
+    // products'. On testnet it must also not claim the whole mainnet subtree.
+    const siblings = PRODUCTS.filter((p) => p.segment !== "").map((p) => hrefFor(p.segment));
+    const excluded = onMainnet ? siblings : [...siblings, MAINNET_ROOT];
+    return pathname === root || (pathname.startsWith(`${root}/`) && !excluded.some((e) => pathname.startsWith(e)));
+  }
 
   return (
     <nav className="flex gap-1 overflow-x-auto">
       {PRODUCTS.map((p) => {
-        const active = isActive(pathname, p.href);
+        const active = isActive(p.segment);
         return (
           <Link
-            key={p.href}
-            href={p.href}
+            key={p.label}
+            href={hrefFor(p.segment)}
             aria-current={active ? "page" : undefined}
             className={`whitespace-nowrap rounded-[var(--radius-pill)] px-3 py-1.5 text-sm font-medium transition-colors ${
               active
