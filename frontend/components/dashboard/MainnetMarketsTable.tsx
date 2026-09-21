@@ -39,10 +39,7 @@ function Row({ asset }: { asset: MainnetAsset }) {
       </span>
 
       <span className="font-[family-name:var(--font-display)] text-[var(--color-text)]">
-        {d.twap ?? d.spot ? `$${n(d.twap ?? d.spot ?? 0)}` : "…"}
-        {!asset.twapAvailable && d.spot !== null && (
-          <span className="ml-1 text-[9px] font-normal text-[var(--color-text-faint)]">spot</span>
-        )}
+        {d.price !== null ? `$${n(d.price)}` : "…"}
       </span>
 
       <span className="text-[var(--color-text-muted)]">{d.usdgInPool !== undefined ? `${n(d.usdgInPool, 0)}` : "…"}</span>

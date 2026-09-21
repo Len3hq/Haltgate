@@ -8,9 +8,7 @@ import {
   erc20MetaAbi,
   multiplierAbi,
   uniV3PoolAbi,
-  priceFromTicks,
   priceFromTick,
-  TWAP_WINDOW,
   type MainnetAsset,
 } from "@/lib/mainnet";
 
@@ -42,26 +40,15 @@ export function useMainnetAsset(asset: MainnetAsset) {
     query: poll,
   });
 
-  // Spot, from the current tick. Works on every pool: slot0 has no
-  // cardinality requirement, so a pool without TWAP history still has a price.
+  // Current price from the pool's tick. Every pool can serve this; only some
+  // keep the observation history a time-weighted average would need, which is
+  // a distinction worth making once the protocol is actually live here.
   const { data: slot0 } = useReadContract({
     chainId: xLayerMainnet.id,
     address: asset.pool,
     abi: uniV3PoolAbi,
     functionName: "slot0",
     query: poll,
-  });
-
-  // TWAP is the better number where the pool can serve one. Availability turns
-  // on observationCardinality, not liquidity: NVDA and SPY are at 256, TSLA at
-  // 1, so TSLA reverts here while still having a perfectly readable spot price.
-  const { data: ticks } = useReadContract({
-    chainId: xLayerMainnet.id,
-    address: asset.pool,
-    abi: uniV3PoolAbi,
-    functionName: "observe",
-    args: [[TWAP_WINDOW, 0]],
-    query: { ...poll, enabled: asset.twapAvailable },
   });
 
   const usdgRaw = meta?.[3]?.result as bigint | undefined;
@@ -76,9 +63,7 @@ export function useMainnetAsset(asset: MainnetAsset) {
     multiplier: multiplierRaw !== undefined ? Number(formatUnits(multiplierRaw, 18)) : undefined,
     usdgInPool,
     stockInPool: stockRaw !== undefined ? Number(formatUnits(stockRaw, 18)) : undefined,
-    spot: slot0 ? priceFromTick(Number(slot0[1])) : null,
-    twap: ticks ? priceFromTicks(ticks[0] as readonly bigint[], TWAP_WINDOW) : null,
-    observationCardinality: slot0 ? Number(slot0[3]) : undefined,
+    price: slot0 ? priceFromTick(Number(slot0[1])) : null,
     /// Depth flag, separate from price availability. The two are independent:
     /// a thin pool can still quote, and a deep pool can still lack TWAP history.
     thin: usdgInPool === undefined ? undefined : usdgInPool < 50_000,

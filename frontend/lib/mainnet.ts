@@ -21,12 +21,6 @@ export type MainnetAsset = {
   ticker: string;
   /// TradingView symbol for the reference chart, same as the testnet markets.
   tradingViewSymbol: string;
-  /// Whether observe() succeeds, which depends on the pool's
-  /// observationCardinality, NOT on its liquidity. Verified on-chain: NVDA
-  /// and SPY are at 256, TSLA is at 1, meaning nobody ever called
-  /// increaseObservationCardinalityNext() on it. Every pool still has a
-  /// readable spot price from slot0 regardless.
-  twapAvailable: boolean;
 };
 
 export const MAINNET_USDG = "0x4ae46a509f6b1d9056937ba4500cb143933d2dc8" as const; // "Global Dollar", 6dp
@@ -40,7 +34,6 @@ export const MAINNET_ASSETS: readonly MainnetAsset[] = [
     pool: "0x2a2b11730c2b6d99a58034a869dd810d7300a7b2",
     ticker: "NVDA",
     tradingViewSymbol: "NASDAQ:NVDA",
-    twapAvailable: true,
   },
   {
     key: "spy",
@@ -50,7 +43,6 @@ export const MAINNET_ASSETS: readonly MainnetAsset[] = [
     pool: "0x07c40850d14064d20eb0afdef9574675392f2c11",
     ticker: "SPY",
     tradingViewSymbol: "AMEX:SPY",
-    twapAvailable: true,
   },
   {
     key: "tsla",
@@ -60,7 +52,6 @@ export const MAINNET_ASSETS: readonly MainnetAsset[] = [
     pool: "0xe1071db4691b325c709854dc3d5ccd5d77e62ed1",
     ticker: "TSLA",
     tradingViewSymbol: "NASDAQ:TSLA",
-    twapAvailable: false,
   },
 ] as const;
 
@@ -102,41 +93,26 @@ export const uniV3PoolAbi = [
     ],
     stateMutability: "view",
   },
-  {
-    type: "function",
-    name: "observe",
-    inputs: [{ type: "uint32[]", name: "secondsAgos" }],
-    outputs: [{ type: "int56[]" }, { type: "uint160[]" }],
-    stateMutability: "view",
-  },
   { type: "function", name: "liquidity", inputs: [], outputs: [{ type: "uint128" }], stateMutability: "view" },
 ] as const;
 
-/// Price of the wrapped token in USDG, from a Uniswap V3 tick observation.
+/// Price of the wrapped token in USDG, from the pool's current tick.
 ///
 /// In every one of these pools USDG is token0 (6dp) and the stock is token1
 /// (18dp), verified on-chain. 1.0001^tick gives token1 per token0 in raw
 /// units, so the decimal adjustment inverts to a USDG price per whole token.
-export function priceFromTicks(tickCumulatives: readonly bigint[], windowSeconds: number): number | null {
-  if (tickCumulatives.length < 2) return null;
-  const avgTick = Number(tickCumulatives[1] - tickCumulatives[0]) / windowSeconds;
-  const raw = Math.pow(1.0001, avgTick);
-  const stockPerUsdg = (raw * 1e6) / 1e18;
-  if (!isFinite(stockPerUsdg) || stockPerUsdg <= 0) return null;
-  return 1 / stockPerUsdg;
-}
-
-/// Spot price of the wrapped token in USDG from the pool's current tick.
-/// Same decimal handling as priceFromTicks; works for every pool because
-/// slot0 has no cardinality requirement.
+///
+/// Note for when the protocol is actually live here: a lending market would
+/// want a time-weighted average rather than the current tick, which is far
+/// cheaper to push around. Verified on-chain that NVDA and SPY keep enough
+/// observation history to serve one and TSLA does not, so that is a per-pool
+/// check rather than an assumption.
 export function priceFromTick(tick: number): number | null {
   const raw = Math.pow(1.0001, tick);
   const stockPerUsdg = (raw * 1e6) / 1e18;
   if (!isFinite(stockPerUsdg) || stockPerUsdg <= 0) return null;
   return 1 / stockPerUsdg;
 }
-
-export const TWAP_WINDOW = 3600; // 1h, the window the on-chain check used
 
 export function mainnetAssetByKey(key: string): MainnetAsset | undefined {
   return MAINNET_ASSETS.find((a) => a.key === key);

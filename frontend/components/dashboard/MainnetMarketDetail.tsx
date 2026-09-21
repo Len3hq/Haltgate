@@ -93,7 +93,7 @@ export function MainnetMarketDetail({ asset }: { asset: MainnetAsset }) {
         <span className="text-xs text-[var(--color-text-muted)]">
           Pool price{" "}
           <span className="font-[family-name:var(--font-display)] font-semibold text-[var(--color-text)]">
-            {d.twap ?? d.spot ? `$${n(d.twap ?? d.spot ?? 0)}` : "…"}
+            {d.price !== null ? `$${n(d.price)}` : "…"}
           </span>
         </span>
       </div>
@@ -118,10 +118,7 @@ export function MainnetMarketDetail({ asset }: { asset: MainnetAsset }) {
       <div className="mt-4 grid gap-4 lg:grid-cols-3">
         <div className="dash-fade-in dash-fade-in-2 space-y-4 lg:col-span-2">
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <Stat
-              label={d.twap ? "Price, hourly average" : "Price, right now"}
-              value={d.twap ?? d.spot ? `$${n(d.twap ?? d.spot ?? 0)}` : "…"}
-            />
+            <Stat label="Price" value={d.price !== null ? `$${n(d.price)}` : "…"} />
             <Stat label="USDG depth" value={d.usdgInPool !== undefined ? n(d.usdgInPool, 0) : "…"} />
             <Stat label="Stock in pool" value={n(d.stockInPool)} />
             <Stat label="Split / dividend adjustment" value={d.multiplier !== undefined ? d.multiplier.toFixed(6) : "…"} />
@@ -134,13 +131,6 @@ export function MainnetMarketDetail({ asset }: { asset: MainnetAsset }) {
             </div>
           </div>
 
-          {!asset.twapAvailable && (
-            <p className="rounded-[var(--radius-card)] bg-[var(--color-warning-bg)] px-4 py-3 text-xs leading-relaxed text-[var(--color-warning)]">
-              This pool can only quote its price right now, not an hourly average. A lending market would want the
-              average, because a single moment&apos;s price is much easier for someone to push around. The pool simply
-              has not been configured to keep that history, which anyone can switch on.
-            </p>
-          )}
         </div>
 
         <div className="dash-fade-in dash-fade-in-2">
