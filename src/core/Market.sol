@@ -109,6 +109,15 @@ contract Market is Ownable, ReentrancyGuard {
     /// @notice Ceiling on settlementBounty. A settler supplies only gas, unlike
     /// a liquidator who must front the debt, so this sits far below liquidationBonus.
     uint256 public constant MAX_SETTLEMENT_BOUNTY = 0.02e18;
+    /// @notice Ceiling on liquidationBonus. Unbounded, a liquidator repaying
+    /// dust could seize a whole position: collateralSeized is clamped to the
+    /// position, so the clamp stops the underflow but not the theft.
+    uint256 public constant MAX_LIQUIDATION_BONUS = 0.2e18;
+    /// @notice Bounds on maxOracleStaleness. The floor stops governance
+    /// setting it so low that every price-dependent call reverts; the ceiling
+    /// stops the freshness backstop being disabled by setting it enormous.
+    uint256 public constant MIN_ORACLE_STALENESS = 1 hours;
+    uint256 public constant MAX_ORACLE_STALENESS = 7 days;
 
     /// @notice owner => operator => approved. Like an ERC20 approve: revocable,
     /// and grantable only by the position owner over themselves. Exists so a
@@ -218,11 +227,15 @@ contract Market is Ownable, ReentrancyGuard {
     }
 
     function setLiquidationBonus(uint256 newBonus) external onlyOwner {
+        if (newBonus > MAX_LIQUIDATION_BONUS) revert InvalidRiskParams();
         liquidationBonus = newBonus;
         emit LiquidationBonusUpdated(newBonus);
     }
 
     function setMaxOracleStaleness(uint256 newMaxStaleness) external onlyOwner {
+        if (newMaxStaleness < MIN_ORACLE_STALENESS || newMaxStaleness > MAX_ORACLE_STALENESS) {
+            revert InvalidRiskParams();
+        }
         maxOracleStaleness = newMaxStaleness;
         emit MaxOracleStalenessUpdated(newMaxStaleness);
     }

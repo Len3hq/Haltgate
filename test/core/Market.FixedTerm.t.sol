@@ -496,4 +496,73 @@ contract MarketFixedTermTest is Test {
         market.setRiskParams(0.7e18, 0.75e18);
         assertLe(market.fixedMaxLTV(), market.maxLTV(), "raising variable never breaks it");
     }
+
+    // --- Parameter ceilings (audit, 2026-09-21) --------------------------
+    // Every other tunable in the protocol has a MAX/MIN constant. These two
+    // did not, which made them the only way governance could set a value the
+    // contract would never otherwise allow.
+
+    function test_SetLiquidationBonus_RejectsAboveCap() public {
+        uint256 aboveCap = market.MAX_LIQUIDATION_BONUS() + 1;
+        vm.prank(owner);
+        vm.expectRevert(Market.InvalidRiskParams.selector);
+        market.setLiquidationBonus(aboveCap);
+    }
+
+    function test_SetLiquidationBonus_AllowsExactlyTheCap() public {
+        uint256 cap = market.MAX_LIQUIDATION_BONUS();
+        vm.prank(owner);
+        market.setLiquidationBonus(cap);
+        assertEq(market.liquidationBonus(), cap);
+    }
+
+    function test_LiquidationBonusCap_StopsWholePositionSeizureForDust() public {
+        // The attack the ceiling exists to prevent: an absurd bonus makes
+        // collateralSeized exceed the position, the clamp caps it at the
+        // whole position, and a dust repayment takes everything.
+        uint256 absurd = 100e18; // 10,000%
+        vm.prank(owner);
+        vm.expectRevert(Market.InvalidRiskParams.selector);
+        market.setLiquidationBonus(absurd);
+    }
+
+    function test_SetMaxOracleStaleness_RejectsBelowFloor() public {
+        uint256 belowFloor = market.MIN_ORACLE_STALENESS() - 1;
+        vm.prank(owner);
+        vm.expectRevert(Market.InvalidRiskParams.selector);
+        market.setMaxOracleStaleness(belowFloor);
+    }
+
+    function test_SetMaxOracleStaleness_RejectsAboveCeiling() public {
+        uint256 aboveCeiling = market.MAX_ORACLE_STALENESS() + 1;
+        vm.prank(owner);
+        vm.expectRevert(Market.InvalidRiskParams.selector);
+        market.setMaxOracleStaleness(aboveCeiling);
+    }
+
+    function test_SetMaxOracleStaleness_RejectsZero_WhichWouldBrickPricing() public {
+        vm.prank(owner);
+        vm.expectRevert(Market.InvalidRiskParams.selector);
+        market.setMaxOracleStaleness(0);
+    }
+
+    function test_SetMaxOracleStaleness_AcceptsBothBounds() public {
+        uint256 lo = market.MIN_ORACLE_STALENESS();
+        uint256 hi = market.MAX_ORACLE_STALENESS();
+        vm.startPrank(owner);
+        market.setMaxOracleStaleness(lo);
+        assertEq(market.maxOracleStaleness(), lo);
+        market.setMaxOracleStaleness(hi);
+        assertEq(market.maxOracleStaleness(), hi);
+        vm.stopPrank();
+    }
+
+    function test_EveryTunableHasACeiling() public view {
+        // Documents the invariant the audit checked: no governance-settable
+        // risk parameter is unbounded.
+        assertGt(market.MAX_LIQUIDATION_BONUS(), 0);
+        assertGt(market.MAX_ORACLE_STALENESS(), market.MIN_ORACLE_STALENESS());
+        assertGt(market.MAX_SETTLEMENT_BOUNTY(), 0);
+        assertGt(market.MAX_FIXED_TERM(), market.MIN_FIXED_TERM());
+    }
 }
