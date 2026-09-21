@@ -14,9 +14,9 @@ export default function HaltsPage() {
         head={["State", "Supply / Borrow", "Liquidate", "Repay", "Interest"]}
         rows={[
           ["OPEN", "Yes", "Yes", "Yes", "Accruing"],
-          ["HALTING", "No", "No", "Yes", "Frozen"],
+          ["HALTING", "No", "No", "Yes", "Accruing"],
           ["HALTED", "No", "No", "Yes", "Frozen"],
-          ["RESUMING", "No", "No", "Yes", "Frozen"],
+          ["RESUMING", "No", "No", "Yes", "Accruing"],
           ["SETTLING", "No", "No", "Yes", "Frozen"],
         ]}
       />
@@ -105,14 +105,19 @@ export default function HaltsPage() {
 
       <H2>What freezes, and why interest is one of them</H2>
       <P>
-        Freezing interest during a halt is not a courtesy. During a halt a borrower cannot add collateral by borrowing
-        elsewhere in the protocol, cannot adjust their position, and cannot be liquidated. Charging them for that window
-        would accrue debt against a position they are locked out of managing. So the borrow index stops advancing, and
-        resumes from exactly where it left off.
+        Interest freezes in <Strong>HALTED</Strong> and <Strong>SETTLING</Strong> only, not in every non-OPEN state.
+        The test is whether a trustworthy price exists. In those two there is none, so a borrower cannot judge their own
+        position, cannot be liquidated, and would be accruing debt against something they are locked out of managing.
+        The borrow index stops advancing and resumes from exactly where it left off.
       </P>
       <P>
-        The consequence for lenders is that yield pauses too. That is the honest trade: the same event that protects
-        borrowers from a bad liquidation also stops the meter for the people funding them.
+        <Strong>HALTING and RESUMING keep accruing.</Strong> In both, the price is still usable: HALTING is a
+        pre-warning before the feed goes, and by RESUMING a fresh price has already landed. A borrower can repay or top
+        up in either, so the loan is genuinely live and charging for it is fair.
+      </P>
+      <P>
+        The consequence for lenders is that yield pauses whenever interest does. That is the honest trade: the same
+        event that protects borrowers from a bad liquidation also stops the meter for the people funding them.
       </P>
 
       <H2>What a halt does not do</H2>

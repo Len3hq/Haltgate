@@ -15,6 +15,13 @@ contract InterestRateModel is Ownable {
     uint256 private constant SECONDS_PER_YEAR = 365 days;
     /// @notice Hard ceiling on kink -- 100% utilization is the max meaningful value.
     uint256 private constant MAX_KINK = WAD;
+    /// @notice Ceiling on every rate leg, annualised. Kink was bounded from
+    /// the start but the three rate parameters were not, which left the one
+    /// contract shared by every market able to take an arbitrary borrow rate
+    /// and make all five insolvent in a single call. 1,000%/yr is far above
+    /// any sane curve and still far below the range where rate * elapsed
+    /// starts overflowing.
+    uint256 public constant MAX_RATE_PER_YEAR = 10e18;
 
     /// @notice Per-second rate at 0% utilization.
     uint256 public baseRatePerSecond;
@@ -28,6 +35,7 @@ contract InterestRateModel is Ownable {
     event ParamsUpdated(uint256 baseRatePerYear, uint256 multiplierPerYear, uint256 jumpMultiplierPerYear, uint256 kink);
 
     error InvalidKink();
+    error InvalidRate();
 
     constructor(
         uint256 baseRatePerYear,
@@ -53,6 +61,10 @@ contract InterestRateModel is Ownable {
         internal
     {
         if (kink_ > MAX_KINK) revert InvalidKink();
+        if (
+            baseRatePerYear > MAX_RATE_PER_YEAR || multiplierPerYear > MAX_RATE_PER_YEAR
+                || jumpMultiplierPerYear > MAX_RATE_PER_YEAR
+        ) revert InvalidRate();
         baseRatePerSecond = baseRatePerYear / SECONDS_PER_YEAR;
         multiplierPerSecond = multiplierPerYear / SECONDS_PER_YEAR;
         jumpMultiplierPerSecond = jumpMultiplierPerYear / SECONDS_PER_YEAR;
