@@ -42,7 +42,7 @@ function Row({ asset }: { asset: MainnetAsset }) {
         {d.price !== null ? `$${n(d.price)}` : "…"}
       </span>
 
-      <span className="text-[var(--color-text-muted)]">{d.usdgInPool !== undefined ? `${n(d.usdgInPool, 0)}` : "…"}</span>
+      <span className="text-[var(--color-text-muted)]">{d.quoteInPool !== undefined ? `${n(d.quoteInPool, 0)}` : "…"}</span>
 
       <span className="font-[family-name:var(--font-display)] text-[var(--color-text-muted)]">
         {d.multiplier !== undefined ? d.multiplier.toFixed(6) : "…"}
@@ -68,7 +68,7 @@ export function MainnetMarketsTable() {
         <span>Asset</span>
         <span>Depth</span>
         <span>Price</span>
-        <span>USDG depth</span>
+        <span>Depth</span>
         <span>Adjustment</span>
       </div>
 

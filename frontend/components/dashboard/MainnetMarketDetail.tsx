@@ -119,7 +119,7 @@ export function MainnetMarketDetail({ asset }: { asset: MainnetAsset }) {
         <div className="dash-fade-in dash-fade-in-2 space-y-4 lg:col-span-2">
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             <Stat label="Price" value={d.price !== null ? `$${n(d.price)}` : "…"} />
-            <Stat label="USDG depth" value={d.usdgInPool !== undefined ? n(d.usdgInPool, 0) : "…"} />
+            <Stat label="USDG depth" value={d.quoteInPool !== undefined ? n(d.quoteInPool, 0) : "…"} />
             <Stat label="Stock in pool" value={n(d.stockInPool)} />
             <Stat label="Split / dividend adjustment" value={d.multiplier !== undefined ? d.multiplier.toFixed(6) : "…"} />
           </div>

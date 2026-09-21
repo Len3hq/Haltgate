@@ -5,6 +5,7 @@ import { formatUnits } from "viem";
 import { xLayerMainnet } from "@/lib/chains";
 import {
   MAINNET_USDG,
+  MAINNET_USDC,
   erc20MetaAbi,
   multiplierAbi,
   uniV3PoolAbi,
@@ -24,7 +25,7 @@ export function useMainnetAsset(asset: MainnetAsset) {
       { chainId: xLayerMainnet.id, address: asset.raw, abi: multiplierAbi, functionName: "multiplier" },
       {
         chainId: xLayerMainnet.id,
-        address: MAINNET_USDG,
+        address: asset.quoteSymbol === "USDC" ? MAINNET_USDC : MAINNET_USDG,
         abi: erc20MetaAbi,
         functionName: "balanceOf",
         args: [asset.pool],
@@ -51,8 +52,9 @@ export function useMainnetAsset(asset: MainnetAsset) {
     query: poll,
   });
 
-  const usdgRaw = meta?.[3]?.result as bigint | undefined;
-  const usdgInPool = usdgRaw !== undefined ? Number(formatUnits(usdgRaw, 6)) : undefined;
+  // Whichever stablecoin this pool pairs against; both are 6 decimals.
+  const quoteRaw = meta?.[3]?.result as bigint | undefined;
+  const usdgInPool = quoteRaw !== undefined ? Number(formatUnits(quoteRaw, 6)) : undefined;
   const stockRaw = meta?.[4]?.result as bigint | undefined;
   const supplyRaw = meta?.[1]?.result as bigint | undefined;
   const multiplierRaw = meta?.[2]?.result as bigint | undefined;
@@ -61,9 +63,10 @@ export function useMainnetAsset(asset: MainnetAsset) {
     symbol: meta?.[0]?.result as string | undefined,
     supply: supplyRaw !== undefined ? Number(formatUnits(supplyRaw, 18)) : undefined,
     multiplier: multiplierRaw !== undefined ? Number(formatUnits(multiplierRaw, 18)) : undefined,
-    usdgInPool,
+    quoteInPool: usdgInPool,
+    quoteSymbol: asset.quoteSymbol,
     stockInPool: stockRaw !== undefined ? Number(formatUnits(stockRaw, 18)) : undefined,
-    price: slot0 ? priceFromTick(Number(slot0[1])) : null,
+    price: slot0 ? priceFromTick(Number(slot0[1]), asset.stockIsToken0) : null,
     /// Depth flag, separate from price availability. The two are independent:
     /// a thin pool can still quote, and a deep pool can still lack TWAP history.
     thin: usdgInPool === undefined ? undefined : usdgInPool < 50_000,
