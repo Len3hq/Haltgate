@@ -9,6 +9,7 @@ import {
   multiplierAbi,
   uniV3PoolAbi,
   priceFromTicks,
+  priceFromTick,
   TWAP_WINDOW,
   type MainnetAsset,
 } from "@/lib/mainnet";
@@ -41,8 +42,19 @@ export function useMainnetAsset(asset: MainnetAsset) {
     query: poll,
   });
 
-  // Only asked where observe() is known to succeed. wTSLAx's pool lacks the
-  // observation history, so querying it would just surface a revert.
+  // Spot, from the current tick. Works on every pool: slot0 has no
+  // cardinality requirement, so a pool without TWAP history still has a price.
+  const { data: slot0 } = useReadContract({
+    chainId: xLayerMainnet.id,
+    address: asset.pool,
+    abi: uniV3PoolAbi,
+    functionName: "slot0",
+    query: poll,
+  });
+
+  // TWAP is the better number where the pool can serve one. Availability turns
+  // on observationCardinality, not liquidity: NVDA and SPY are at 256, TSLA at
+  // 1, so TSLA reverts here while still having a perfectly readable spot price.
   const { data: ticks } = useReadContract({
     chainId: xLayerMainnet.id,
     address: asset.pool,
@@ -64,9 +76,11 @@ export function useMainnetAsset(asset: MainnetAsset) {
     multiplier: multiplierRaw !== undefined ? Number(formatUnits(multiplierRaw, 18)) : undefined,
     usdgInPool,
     stockInPool: stockRaw !== undefined ? Number(formatUnits(stockRaw, 18)) : undefined,
+    spot: slot0 ? priceFromTick(Number(slot0[1])) : null,
     twap: ticks ? priceFromTicks(ticks[0] as readonly bigint[], TWAP_WINDOW) : null,
-    /// Undefined while loading, deliberately: defaulting to "fine" would flash
-    /// the opposite of the truth for the one asset that proves the point.
+    observationCardinality: slot0 ? Number(slot0[3]) : undefined,
+    /// Depth flag, separate from price availability. The two are independent:
+    /// a thin pool can still quote, and a deep pool can still lack TWAP history.
     thin: usdgInPool === undefined ? undefined : usdgInPool < 50_000,
   };
 }

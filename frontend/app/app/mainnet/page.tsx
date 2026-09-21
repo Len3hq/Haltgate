@@ -20,7 +20,8 @@ export default function MainnetPage() {
           </span>
         </div>
         <p className="mt-1 text-sm text-[var(--color-text-muted)]">
-          Real assets on X Layer, read live from chain 196. Browsing works; supplying and borrowing do not.
+          The real tokenized stocks trading on X Layer today, with live prices and pool depth. Have a look around;
+          lending is not open here yet.
         </p>
       </div>
 

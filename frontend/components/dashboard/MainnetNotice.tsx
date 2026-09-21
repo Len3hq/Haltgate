@@ -75,8 +75,8 @@ export function MainnetNotice() {
           Not live yet
         </h2>
         <p className="mt-3 text-sm leading-relaxed text-[var(--color-text-muted)]">
-          HaltGate is not deployed on mainnet. You can browse the real markets, prices and corporate-action data pulled
-          live from chain 196, but supplying, borrowing and leverage are all disabled here.
+          HaltGate is not live on X Layer mainnet yet. You can browse the real stocks, their live prices and pool
+          depth, but supplying, borrowing and leverage are all switched off here.
         </p>
         <p className="mt-3 text-sm leading-relaxed text-[var(--color-text-muted)]">
           Everything works on testnet. Switch back any time using the toggle in the header.

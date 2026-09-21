@@ -21,9 +21,11 @@ export type MainnetAsset = {
   ticker: string;
   /// TradingView symbol for the reference chart, same as the testnet markets.
   tradingViewSymbol: string;
-  /// Verified: observe() succeeds on this pool. wTSLAx's does not, because
-  /// its pool is too thin to carry an observation history, and that failure
-  /// is worth showing rather than hiding.
+  /// Whether observe() succeeds, which depends on the pool's
+  /// observationCardinality, NOT on its liquidity. Verified on-chain: NVDA
+  /// and SPY are at 256, TSLA is at 1, meaning nobody ever called
+  /// increaseObservationCardinalityNext() on it. Every pool still has a
+  /// readable spot price from slot0 regardless.
   twapAvailable: boolean;
 };
 
@@ -84,6 +86,23 @@ export const multiplierAbi = [
 
 export const uniV3PoolAbi = [
   {
+    // Always readable, whatever the cardinality. The current tick is the spot
+    // price, which is why a missing TWAP never means a missing price.
+    type: "function",
+    name: "slot0",
+    inputs: [],
+    outputs: [
+      { type: "uint160" },
+      { type: "int24" },
+      { type: "uint16" },
+      { type: "uint16" },
+      { type: "uint16" },
+      { type: "uint8" },
+      { type: "bool" },
+    ],
+    stateMutability: "view",
+  },
+  {
     type: "function",
     name: "observe",
     inputs: [{ type: "uint32[]", name: "secondsAgos" }],
@@ -102,6 +121,16 @@ export function priceFromTicks(tickCumulatives: readonly bigint[], windowSeconds
   if (tickCumulatives.length < 2) return null;
   const avgTick = Number(tickCumulatives[1] - tickCumulatives[0]) / windowSeconds;
   const raw = Math.pow(1.0001, avgTick);
+  const stockPerUsdg = (raw * 1e6) / 1e18;
+  if (!isFinite(stockPerUsdg) || stockPerUsdg <= 0) return null;
+  return 1 / stockPerUsdg;
+}
+
+/// Spot price of the wrapped token in USDG from the pool's current tick.
+/// Same decimal handling as priceFromTicks; works for every pool because
+/// slot0 has no cardinality requirement.
+export function priceFromTick(tick: number): number | null {
+  const raw = Math.pow(1.0001, tick);
   const stockPerUsdg = (raw * 1e6) / 1e18;
   if (!isFinite(stockPerUsdg) || stockPerUsdg <= 0) return null;
   return 1 / stockPerUsdg;

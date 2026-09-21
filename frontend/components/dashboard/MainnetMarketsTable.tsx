@@ -34,16 +34,15 @@ function Row({ asset }: { asset: MainnetAsset }) {
                 : "bg-[var(--color-success-bg)] text-[var(--color-success)]"
           }`}
         >
-          {d.thin === undefined ? "READING" : d.thin ? "THIN" : "VIABLE"}
+          {d.thin === undefined ? "LOADING" : d.thin ? "SHALLOW" : "DEEP"}
         </span>
       </span>
 
-      <span
-        className={`font-[family-name:var(--font-display)] ${
-          d.twap ? "text-[var(--color-text)]" : "text-[var(--color-error)]"
-        }`}
-      >
-        {d.twap ? `$${n(d.twap)}` : asset.twapAvailable ? "…" : "no price"}
+      <span className="font-[family-name:var(--font-display)] text-[var(--color-text)]">
+        {d.twap ?? d.spot ? `$${n(d.twap ?? d.spot ?? 0)}` : "…"}
+        {!asset.twapAvailable && d.spot !== null && (
+          <span className="ml-1 text-[9px] font-normal text-[var(--color-text-faint)]">spot</span>
+        )}
       </span>
 
       <span className="text-[var(--color-text-muted)]">{d.usdgInPool !== undefined ? `${n(d.usdgInPool, 0)}` : "…"}</span>
@@ -63,17 +62,17 @@ export function MainnetMarketsTable() {
     <div className="rounded-[var(--radius-card-lg)] border border-[var(--color-border)] bg-[var(--color-bg-card)] p-4">
       <div className="flex items-baseline justify-between gap-3">
         <p className="text-xs uppercase tracking-wide text-[var(--color-text-faint)]">Mainnet Markets</p>
-        <p className="text-[11px] text-[var(--color-text-muted)]">Live from chain 196</p>
+        <p className="text-[11px] text-[var(--color-text-muted)]">Live prices from X Layer</p>
       </div>
 
       <div
         className={`mt-3 grid ${COLS} gap-2 px-3 pb-1 text-[10px] uppercase tracking-wide text-[var(--color-text-faint)]`}
       >
         <span>Asset</span>
-        <span>Pool</span>
-        <span>TWAP</span>
+        <span>Depth</span>
+        <span>Price</span>
         <span>USDG depth</span>
-        <span>CA multiplier</span>
+        <span>Adjustment</span>
       </div>
 
       <div className="space-y-1">
