@@ -16,10 +16,9 @@ const PRODUCTS = [
 function isActive(pathname: string, href: string): boolean {
   if (href === "/app") {
     // Markets owns /app and /app/<market>, but not the other products'.
-    return (
-      pathname === "/app" ||
-      (pathname.startsWith("/app/") && !pathname.startsWith("/app/fixed") && !pathname.startsWith("/app/multiply"))
-    );
+    // /app/mainnet is a network view, not a product, so it owns none of these.
+    const OTHER = ["/app/fixed", "/app/multiply", "/app/mainnet"];
+    return pathname === "/app" || (pathname.startsWith("/app/") && !OTHER.some((p) => pathname.startsWith(p)));
   }
   return pathname.startsWith(href);
 }

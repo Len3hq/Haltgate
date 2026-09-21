@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { WalletConnect } from "@/components/WalletConnect";
 import { ProductNav } from "@/components/dashboard/ProductNav";
+import { NetworkSwitcher } from "@/components/dashboard/NetworkSwitcher";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   return (
@@ -17,15 +18,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </div>
           </div>
           <div className="flex items-center gap-3">
-            <span className="hidden items-center gap-1.5 rounded-[var(--radius-pill)] border border-[var(--color-border)] px-3 py-1.5 text-xs text-[var(--color-text-muted)] sm:flex">
-              <span className="h-1.5 w-1.5 rounded-full bg-[var(--color-success)]" />
-              X Layer Testnet
-            </span>
+            <div className="hidden sm:block">
+              <NetworkSwitcher />
+            </div>
             <WalletConnect />
           </div>
         </div>
-        <div className="mx-auto max-w-6xl px-4 pb-3 sm:hidden">
+        <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 pb-3 sm:hidden">
           <ProductNav />
+          <NetworkSwitcher />
         </div>
       </header>
       <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6 sm:px-6">{children}</main>
