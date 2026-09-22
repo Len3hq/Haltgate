@@ -66,7 +66,7 @@ export function MainnetMarketsTable() {
         className={`mt-3 grid ${COLS} gap-2 px-3 pb-1 text-[10px] uppercase tracking-wide text-[var(--color-text-faint)]`}
       >
         <span>Asset</span>
-        <span>Depth</span>
+        <span>Liquidity</span>
         <span>Price</span>
         <span>Depth</span>
         <span>Adjustment</span>
