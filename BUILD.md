@@ -310,6 +310,13 @@ The larger addition, and the only milestone here that touches `Market`'s core ri
   - **Frontend:** no XSS vector (`innerHTML` only clears or stringifies hardcoded registry values), addresses validated with `isAddress()`, all approvals exact-amount, no `NEXT_PUBLIC_*` secrets, chain guard present, `npm audit` clean. One accepted risk: the TradingView embed loads a third-party script with full page privileges, which SRI cannot cover because the loader is dynamic.
   - **320 tests**, Slither unchanged at 53 results across the accepted classes.
 
+- [x] **Read-only mainnet view, 2026-09-21.** Not a deployment: a network toggle in the header switching between the live testnet app and a browsable view of X Layer mainnet, mirroring the same markets-table and detail-page structure with every action disabled.
+  - **Eight real markets found by enumerating pools, not by trusting a list.** GeckoTerminal's API surfaced 116 X Layer pools; filtering them gave NVIDIA, Tesla, Apple, Alphabet, MicroStrategy, Coinbase, Nasdaq 100 and S&P 500. Every token was then verified on-chain for name, symbol, decimals, pool orientation and a readable `multiplier()` before being written into the registry.
+  - **A bug this nearly shipped:** pool orientation is not uniform. Five pools put the stablecoin first, but **MSTR, COIN and QQQ put the stock first**, and the price formula assumed the former. Getting it wrong silently inverts the price rather than erroring: MicroStrategy would have shown $0.006 instead of $166. Three pools also pair against USDC rather than USDG. Corrected and validated against live quotes for all six checkable tickers, every one within 0.3%.
+  - The wrapper's own `asset()` returns the raw rebasing token, so the corporate-action source is derived from chain state rather than hand-copied.
+  - **Two earlier claims corrected.** "No oracle exists on mainnet" was wrong: the Uniswap pools quote within 0.3% of real prices. "No mainnet contract exposes a pause flag" was also wrong: every xStock has `isPaused()`, though it gates transfers rather than signalling a corporate action, so it is not the halt trigger.
+  - Deliberately not deployed. The code is unaudited and `supply()`/`deposit()` are permissionless, so empty pools are not a safeguard; a halted deployment would be worse still, since `LenderVault` gates redemptions but never deposits, making it a trap.
+
 ### Milestone 4 — Multi-Market Support — ✅ done, 2026-09-18
 Five isolated markets live: **NVIDIA, Tesla, Apple, Microsoft, S&P 500 ETF**. Halting one now demonstrably leaves the other four trading, which is the only way to actually *prove* halts are per-asset rather than protocol-wide.
 

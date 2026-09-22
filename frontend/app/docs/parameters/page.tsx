@@ -84,7 +84,7 @@ export default function ParametersPage() {
         rows={[
           ["Fee", "0.30%"],
           ["Fee ceiling", "5%, enforced on-chain"],
-          ["Pricing", "Oracle-priced, halt-gated, with an independent freshness check"],
+          ["Pricing", "Oracle-priced and halt-gated, with its own fixed 24-hour freshness check"],
         ]}
       />
       <P>
@@ -101,6 +101,11 @@ export default function ParametersPage() {
           ["MIN_FIXED_TERM", "1 day", "Floor on fixed-term length"],
           ["MAX_FIXED_TERM", "30 days", "Ceiling on fixed-term length"],
           ["MAX_SETTLEMENT_BOUNTY", "2%", "Ceiling on the settler's cut"],
+          ["MAX_LIQUIDATION_BONUS", "20%", "Ceiling on the liquidator's discount"],
+          ["MAX_RATE_PER_YEAR", "1000%", "Ceiling on every leg of the rate curve"],
+          ["MIN_ORACLE_STALENESS", "1 hour", "Stops the freshness window being set uselessly short"],
+          ["MAX_ORACLE_STALENESS", "7 days", "Stops the market's freshness check being disabled"],
+          ["MAX_RESERVE_FACTOR", "50%", "Ceiling on the protocol's cut of interest"],
           ["MAX_FEE", "5%", "Ceiling on the swap fee"],
           ["MIN_SETTLEMENT_DELAY", "1 day", "Stops governance making halts instantly settleable"],
           ["MAX_SETTLEMENT_DELAY", "30 days", "Stops governance restoring an indefinite lockup"],
@@ -108,7 +113,8 @@ export default function ParametersPage() {
       />
       <P>
         These are <Strong>constants, not settings</Strong>. Governance can move parameters within them but cannot change
-        the ceilings themselves without deploying a new contract. See{" "}
+        the ceilings themselves without deploying a new contract. Every governance-settable risk parameter has one;
+        the last two gaps were closed in the September 2026 audit. See{" "}
         <DocLink href="/docs/governance">Governance</DocLink>.
       </P>
     </DocsPageShell>
