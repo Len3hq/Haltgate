@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Logo } from "@/components/Logo";
+import { XIcon, X_URL } from "./XIcon";
 
 export function LandingNav() {
   return (
@@ -26,12 +27,23 @@ export function LandingNav() {
             Docs
           </Link>
         </nav>
-        <Link
-          href="/app"
-          className="rounded-[var(--radius-pill)] bg-[var(--color-accent)] px-5 py-2 text-sm font-semibold text-[var(--color-accent-fg)] transition-opacity hover:opacity-90"
-        >
-          Launch App
-        </Link>
+        <div className="flex items-center gap-2">
+          <a
+            href={X_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="HaltGate on X"
+            className="flex h-9 w-9 items-center justify-center rounded-full text-text-muted transition-colors hover:text-text"
+          >
+            <XIcon className="h-4 w-4" />
+          </a>
+          <Link
+            href="/app"
+            className="rounded-[var(--radius-pill)] bg-[var(--color-accent)] px-5 py-2 text-sm font-semibold text-[var(--color-accent-fg)] transition-opacity hover:opacity-90"
+          >
+            Launch App
+          </Link>
+        </div>
       </div>
     </header>
   );

@@ -1,5 +1,6 @@
 import { LandingNav } from "@/components/landing/LandingNav";
 import { Hero } from "@/components/landing/Hero";
+import { DemoVideo } from "@/components/landing/DemoVideo";
 import { HowItWorks } from "@/components/landing/HowItWorks";
 import { Features } from "@/components/landing/Features";
 import { FixedTermSection } from "@/components/landing/FixedTermSection";
@@ -13,6 +14,7 @@ export default function LandingPage() {
       <LandingNav />
       <main className="flex-1">
         <Hero />
+        <DemoVideo />
         <HowItWorks />
         <Features />
         <FixedTermSection />
