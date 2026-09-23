@@ -4,6 +4,8 @@ A lending market for tokenized US equities (xStocks) on X Layer that knows when 
 
 Built for OKX Dev Day 2026 — RWA / Tokenized Stocks track.
 
+**Live app:** [haltgate.len3.xyz](https://haltgate.len3.xyz)
+
 ---
 
 ## The problem
@@ -108,6 +110,8 @@ The second reason is that nothing can close these positions out early: a liquida
 The rest, including operator delegation, the settlement bounty, how unearned interest is handled and why the leverage loop stops short rather than reverting, are documented in full at [`/docs`](frontend/app/docs).
 
 ## Live deployment
+
+App: [haltgate.len3.xyz](https://haltgate.len3.xyz)
 
 X Layer testnet (chain ID **1952**), explorer: [OKLink](https://www.oklink.com/x-layer-testnet)
 
