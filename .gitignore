@@ -8,3 +8,6 @@ broadcast/*/31337/
 
 # Environment / secrets
 .env
+videos/
+script/demo/
+
