@@ -13,13 +13,13 @@ const STEPS = [
   },
   {
     step: "03",
-    title: "Trading halts, HaltGate freezes with it",
-    body: "The instant the exchange halts the underlying stock and the price oracle pauses, new borrowing and all liquidations stop market-wide — automatically.",
+    title: "A corporate action is coming, HaltGate freezes around it",
+    body: "The issuer publishes each split or dividend on-chain hours ahead. A keeper reads that schedule, and the market stops new borrowing and all liquidations before the price becomes unreliable, automatically.",
   },
   {
     step: "04",
     title: "Repay anytime, resume when price is live",
-    body: "Repaying your own debt is never blocked, even mid-halt. Once real trading resumes and a fresh price lands, the market reopens in a deliberate, ordered sequence.",
+    body: "Repaying your own debt is never blocked, even mid-halt. Once the new share multiplier is in place, a fresh price lands and the pool checks out solvent, the market reopens in a deliberate, ordered sequence.",
   },
 ];
 

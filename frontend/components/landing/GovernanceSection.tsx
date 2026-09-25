@@ -48,8 +48,8 @@ export function GovernanceSection() {
         <div className="rounded-[var(--radius-card-lg)] border border-[var(--color-border)] bg-[var(--color-bg-card)] p-6">
           <p className="text-xs uppercase tracking-wide text-[var(--color-text-faint)]">Tier 1 — Keeper</p>
           <p className="mt-2 text-sm leading-relaxed text-[var(--color-text-muted)]">
-            Fast and narrow. Only flips the halt state machine — nothing else. Not gated by a timelock, because
-            reacting to a real halt is time-sensitive.
+            Fast and narrow. Only flips the halt state machine — nothing else. Run by an automated service that
+            follows the issuer&apos;s corporate-action schedule, on its own dedicated key.
           </p>
         </div>
         <div className="rounded-[var(--radius-card-lg)] border border-[var(--color-border)] bg-[var(--color-bg-card)] p-6">

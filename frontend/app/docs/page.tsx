@@ -81,7 +81,8 @@ export default function IntroductionPage() {
 
       <Callout kind="warn" title="This is a testnet deployment">
         HaltGate runs on X Layer testnet (chain ID 1952). The collateral tokens and the oracle are mocks, the stablecoin
-        is real testnet USDG, and none of it has been audited. See <DocLink href="/docs/testnet">Using the testnet</DocLink>{" "}
+        is real testnet USDG, the corporate-action schedule that triggers halts is real, and none of it has been
+        audited. What comes next is on the <DocLink href="/docs/roadmap">Roadmap</DocLink>. See <DocLink href="/docs/testnet">Using the testnet</DocLink>{" "}
         for exactly what is real and what is not.
       </Callout>
     </DocsPageShell>

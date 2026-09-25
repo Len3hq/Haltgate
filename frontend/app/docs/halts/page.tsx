@@ -67,28 +67,71 @@ export default function HaltsPage() {
 
       <H2>How the corporate action itself is spotted</H2>
       <P>
-        This is the honest soft spot, so it is worth stating plainly rather than glossing.{" "}
-        <Strong>Today the event is spotted by a human.</Strong> Somebody calls <Code>pauseOracle()</Code> through the
-        multisig, and from that point everything is trustless: anyone can call <Code>sync()</Code> to propagate it, so
-        nobody can sit on a halt once the feed is paused.
+        <Strong>Automatically, from the issuer&apos;s own schedule.</Strong> Backed, the issuer of xStocks, records every
+        upcoming corporate action on the token contract before it happens: <Code>newMultiplierActivationTime()</Code>{" "}
+        says when the new share multiplier takes effect, and <Code>multiplier()</Code> switches to it at that second.
+        A keeper service reads that schedule for every stock, cross-checks it against the xStocks API, and drives the
+        matching market through the halt on time. Nobody has to be watching the news.
       </P>
+
+      <Table
+        head={["When", "What the keeper does", "Market"]}
+        rows={[
+          ["2 hours before", "beginHalting()", "HALTING"],
+          ["15 minutes before", "Pauses the oracle, then sync()", "HALTED"],
+          ["The activation", "Nothing: the multiplier changes on its own", "HALTED"],
+          ["15 minutes after, once the new multiplier is in place", "Resumes the oracle at a fresh price, then sync()", "RESUMING"],
+          ["30 minutes later, if solvent and the price is fresh", "completeResume()", "OPEN"],
+        ]}
+      />
+
       <P>
-        One layer is genuinely automatic regardless. The staleness check blocks borrowing on a feed that has stopped
-        publishing whether or not anybody noticed or synced. Its limitation is precision rather than reliability: a
-        stale feed cannot be distinguished from a weekend.
+        How much warning is there? Measured across every action the issuer has scheduled this way, usually{" "}
+        <Strong>four to nine hours</Strong>. Once it was only nine minutes, so a keeper that first sees an action inside
+        the final window skips straight to HALTED rather than missing it.
       </P>
+
+      <H3>What the keeper will and won&apos;t do</H3>
+      <UL>
+        <LI>
+          <Strong>It only reopens halts it started.</Strong> A halt it can&apos;t match to a scheduled action is reported
+          and left alone.
+        </LI>
+        <LI>
+          <Strong>It never reopens on a guess.</Strong> It needs the new multiplier in place, a price published after the
+          action, the cooldown, and <Code>isSystemSolvent()</Code>. If solvency fails, the market stays in RESUMING.
+        </LI>
+        <LI>
+          <Strong>It never touches SETTLING</Strong>, and a data source going quiet is never read as &quot;the action
+          was cancelled&quot;.
+        </LI>
+        <LI>
+          <Strong>It isn&apos;t the only safety net.</Strong> A separate watchdog, with its own key, calls{" "}
+          <Code>sync()</Code> on any market that has drifted from its oracle. And the staleness check below blocks
+          borrowing on a dead feed whether or not anybody acts at all.
+        </LI>
+      </UL>
+
       <P>
-        The route to automating detection exists and is not hypothetical. CF Benchmarks publishes an xStocks corporate
-        action feed with a two-stage <Strong>Pending</Strong> then <Strong>Effective</Strong> lifecycle, which maps onto
-        HALTING and RESUMING almost exactly. It is an off-chain data product, so bringing it on-chain still needs a
-        keeper: that moves the trust from a human watching the news to a keeper watching a regulated feed, which is
-        better without being trustless.
+        Once the oracle is paused, everything is trustless: anyone can call <Code>sync()</Code>, so nobody can sit on a
+        halt. What still requires trust is the keeper deciding <em>when</em> to pause. On testnet that is unavoidable,
+        because the real schedule lives on X Layer mainnet and a testnet contract can&apos;t read it. The{" "}
+        <DocLink href="/docs/roadmap">roadmap</DocLink> removes it on mainnet: there the halt controller reads the
+        schedule itself, so any caller can halt a market on time, with CF Benchmarks&apos; licensed corporate-action
+        feed as an independent second source.
+      </P>
+
+      <P>
+        One layer is automatic regardless. The staleness check blocks borrowing on a feed that has stopped publishing,
+        whether or not anybody noticed or synced. Its limitation is precision rather than reliability: a stale feed
+        cannot be distinguished from a weekend.
       </P>
 
       <Callout kind="note" title="HaltGate is the response, not the detector">
-        Detection and response are separate problems. Several vendors sell detection. What this protocol implements is
-        what a lending market should actually <em>do</em> once a price cannot be trusted, which is the part that is
-        deployed, tested and verifiable on-chain. The detector is a swappable input.
+        Detection and response are separate problems. What this protocol implements on-chain is what a lending market
+        should actually <em>do</em> once a price cannot be trusted. The detector is a swappable input: today the
+        issuer&apos;s on-chain schedule relayed by a keeper, on mainnet the same schedule read directly, alongside a
+        licensed feed.
       </Callout>
 
       <P>

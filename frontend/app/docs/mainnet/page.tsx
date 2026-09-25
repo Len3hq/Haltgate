@@ -28,30 +28,34 @@ export default function MainnetDocsPage() {
 
       <H2>How halt detection would change</H2>
       <P>
-        Testnet detects a corporate action by reading a pause flag on the oracle. No production feed exposes one. Every
-        raw xStock does expose <Code>multiplier()</Code>, which Backed updates when a corporate action takes effect, so
-        a change in that number replaces the pause flag as the trigger. It is published on-chain by the issuer, which
-        keeps <Code>sync()</Code> permissionless exactly as it is today.
+        No production price feed exposes a pause flag, but the token itself carries the schedule. Every raw xStock
+        exposes <Code>newMultiplierActivationTime()</Code>, which Backed sets hours before a corporate action takes
+        effect, and <Code>multiplier()</Code>, which switches to the new value at that second. The testnet keeper already
+        acts on exactly this signal, reading it from mainnet and relaying it. On mainnet the halt controller reads it
+        directly, on the same chain.
       </P>
 
       <Table
         head={["State", "Ports across?", "Why"]}
         rows={[
-          ["HALTED", "Yes", "A multiplier change is the signal, trustless and issuer-published"],
-          ["RESUMING", "Yes, with new logic", "A multiplier never un-changes, so resume becomes time-based"],
-          [
-            "HALTING",
-            "No",
-            "Advance warning needs an event that has not happened yet, so it requires an external feed such as CF Benchmarks' Pending stage",
-          ],
+          ["HALTING", "Yes", "The activation time is published in advance, usually four to nine hours ahead"],
+          ["HALTED", "Yes", "A window around the activation time, trustless and issuer-published"],
+          ["RESUMING", "Yes", "The multiplier has switched, so resume is time-based plus a solvency check"],
         ]}
       />
+
+      <P>
+        That makes halting permissionless: anyone calling <Code>sync()</Code> can move a market into a halt on time,
+        and a keeper becomes only the most reliable caller. For accuracy and independence, a licensed CF Benchmarks
+        corporate-action feed runs alongside it. Both are funded work, see the{" "}
+        <DocLink href="/docs/roadmap">Roadmap</DocLink>.
+      </P>
 
       <H2>What else would be required</H2>
       <P>
         A third-party audit, lending liquidity, and DEX routing to replace the internal{" "}
         <DocLink href="/docs/parameters">SwapModule</DocLink>. The state machine, gating rules, settlement and the
-        leverage stack all port unchanged.
+        leverage stack all port unchanged; the halt controller gains the on-chain schedule described above.
       </P>
       <P>
         <Strong>Deploying without an audit would not be made safe by leaving the pools empty.</Strong> Supplying and

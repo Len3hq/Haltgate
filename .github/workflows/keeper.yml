@@ -1,9 +1,12 @@
-# Feeds real equity prices into the mock oracles so the displayed price tracks
-# the reference chart, and so the feeds never age past Market's 24h staleness
-# window (which would stop borrowing on every market at once).
+# Manual fallback only. Prices are pushed every 15 minutes by the keeper service
+# on Railway (keeper/, PRICE_PUSH=on), from the keeper's own key. This
+# workflow's schedule is disabled in GitHub (`gh workflow disable "Oracle
+# keeper"`), so it only runs when started by hand from the Actions tab. That's
+# useful if the Railway service is down and the feeds are about to go stale
+# (Market rejects prices older than 24h).
 #
-# Runs here rather than on a laptop: the keeper has to keep running whether or
-# not anyone's machine is awake.
+# It pushes from DEPLOYER_PRIVATE_KEY, a different key from the keeper's, so a
+# manual run can't collide with the keeper's transactions.
 name: Oracle keeper
 
 on:

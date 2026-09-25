@@ -45,6 +45,7 @@ export default function TestnetPage() {
           ["USDG", "Real testnet USDG, 6 decimals, not 18"],
           ["Collateral tokens", "Mocks, replicating the confirmed wrapped-xStock design"],
           ["Oracle", "Mock contract, fed real equity prices by a keeper"],
+          ["Corporate-action schedule", "Real, the issuer's own, relayed from X Layer mainnet by the keeper"],
           ["SwapModule", "Stands in for a DEX, priced off the oracle"],
           ["Multisig and timelock", "Real contracts, testnet parameters"],
           ["Audit", "None"],
@@ -65,9 +66,17 @@ export default function TestnetPage() {
         inferred from the feed going stale, and staleness alone cannot distinguish a corporate action from a weekend.
       </P>
       <P>
-        So the mock reproduces the pause mechanism faithfully rather than assuming a feed that does not exist. Closing
-        that gap on mainnet needs a corporate-action feed or a market-hours calendar, not just a different address.
+        So the mock reproduces the pause mechanism faithfully rather than assuming a feed that does not exist. What
+        triggers the pause is real, though: the issuer publishes each corporate action on the token contract ahead of
+        time, and a keeper reads that schedule and pauses the matching market&apos;s oracle around it.
       </P>
+
+      <Callout kind="note" title="Markets halt on real corporate-action dates">
+        When NVIDIA, Tesla, Apple, Microsoft or the S&amp;P 500 ETF has a real dividend or split, its testnet market
+        goes through a real halt, usually starting two hours before the action takes effect and reopening within the
+        hour after. If borrowing on one market is suddenly unavailable while the others work, check its status banner:
+        this is probably why. See <DocLink href="/docs/halts">How halts work</DocLink>.
+      </Callout>
 
       <H2>Real prices, through a mock oracle</H2>
       <P>
@@ -84,7 +93,7 @@ export default function TestnetPage() {
 
       <Callout kind="note" title="A keeper cannot interfere with a halt">
         <Code>setPrice()</Code> reverts while the oracle is paused, so no amount of price pushing can overwrite or lift
-        a halt. Only the multisig moves that state. The keeper also skips paused feeds outright, so a market being
+        a halt. Only the multisig moves that state, and the keeper reopens only halts it started itself. The keeper also skips paused feeds outright, so a market being
         halted stays visibly frozen while the reference chart keeps moving.
       </Callout>
 

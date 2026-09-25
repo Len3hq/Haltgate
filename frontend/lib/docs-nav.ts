@@ -11,6 +11,7 @@ export const DOCS: DocsGroup[] = [
       { slug: "halts", title: "How halts work", summary: "The five-state machine that gates every risk-increasing action." },
       { slug: "testnet", title: "Using the testnet", summary: "Getting tokens, what is real and what is mocked." },
       { slug: "mainnet", title: "Mainnet", summary: "What exists on X Layer today, and what porting would take." },
+      { slug: "roadmap", title: "Roadmap", summary: "What runs today, and what comes next with funding." },
     ],
   },
   {

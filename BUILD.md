@@ -55,7 +55,7 @@ This is an X Layer-specific gap: the asset exists here, the trading venue exists
 - **Raw xStocks rebase `balanceOf()` on EVM chains** (X Layer included); on Solana the balance stays constant and the multiplier is display-layer only — confirmed from xStocks' own developer docs.
 - **Backed Finance (xStocks' issuer) runs its own oracle pause during corporate actions** — `pauseOracle()` freezes the price feed at its last known good value while a CA is processed, then resumes once the multiplier is settled. **This is confirmed as Backed's own documented behavior, not inferred from an adjacent product.**
 - **Chainlink is xStocks' official oracle infrastructure** — confirmed via both xStocks' and Chainlink's own announcements, including "xStocks Data Streams" with real-time corporate-action verification.
-- **A real third-party corporate-actions feed exists**: CF Benchmarks publishes an "xStocks Corporate Action Feed" with a documented methodology — a genuine upgrade path beyond a manually-toggled schedule, not just a hoped-for possibility.
+- **A real third-party corporate-actions feed exists**: CF Benchmarks publishes an "xStocks Corporate Action Feed" with a documented methodology — a genuine upgrade path beyond a manually-toggled schedule, not just a hoped-for possibility. *(Update 2026-09-25: testnet halts are no longer manual; the keeper follows the issuer's on-chain schedule, §11 *Automated halts*. CF Benchmarks is now the planned licensed mainnet source, §13.)*
 
 **What this means for the build:** the halt mechanism is not just valid for raw, rebasing xStocks — it's validated at the oracle layer, which means it applies equally to **wrapped, non-rebasing xStocks like wNVDAx**. A stock split still cuts the per-share price whether or not the token's own balance changes; Backed's own oracle freezes during that window regardless of which form of the token is priced off it. **This resolves the wrapped-asset concern raised during pre-build verification — wNVDAx is a valid, liquid, thesis-consistent collateral asset.**
 
@@ -87,6 +87,8 @@ That breaks an assumption in the current design. `Market._requireFreshPrice()` r
 So `IPausableOracle.isPaused()` is a mock convenience, not a real interface. The production-correct detection path is the staleness check `Market._requireFreshPrice()` **already implements** against `maxOracleStaleness`.
 
 **The complication that needs solving before mainnet:** these feeds also stop updating during ordinary market closure — *"these feeds do not have heartbeats during off-hours"* (weekends, holidays, overnight). Staleness alone therefore cannot distinguish "corporate action in progress" from "it is Saturday," and a naive staleness-triggered halt would halt the market every weekend. Distinguishing them requires either the CF Benchmarks corporate-action feed (§3.1) or a market-hours calendar. That promotes the CF Benchmarks integration from a roadmap nicety to the actual missing piece of a mainnet halt trigger.
+
+> **Superseded 2026-09-25: the token itself carries the schedule.** The conclusion above holds for *price feeds*, but the raw xStock token has a better signal. Backed's own implementation (`BackedAutoFeeTokenImplementation`, [source](https://github.com/backed-fi/backed-token-contract)) exposes `newMultiplier()` and `newMultiplierActivationTime()`. An action is pending exactly when `newMultiplierActivationTime() > block.timestamp`, and `multiplier()` switches to the new value at that second without a transaction. That is advance warning, on-chain, from the issuer, and it can't be confused with a weekend. Measured by binary-searching archive state for every action since the tokens gained scheduling: scheduled **3.9–9.1h ahead** (NVDA, AAPL, GOOGL, QQQ), with one outlier, **SPY 2026-06-18, 9 minutes ahead**. The contract caps it at 7 days (activation must fall inside the current weekly fee period). The testnet keeper (§11, *Automated halts*) now acts on this signal. CF Benchmarks stays on the roadmap as the licensed, independent mainnet source (§13), no longer as the only way to get a trigger. Also verified: `oraclePaused()`, mentioned in the xStocks docs, reverts on the X Layer tokens.
 
 Sources: [Chainlink tokenized-equity feed docs](https://docs.chain.link/data-feeds/tokenized-equity-feeds), [OKX × Chainlink Data Streams on X Layer](https://web3.okx.com/learn/xlayer-chainlink-data-streams).
 
@@ -365,6 +367,34 @@ Also fixed a real bug while here, not just lint: `Date.now()` was being read dur
 
 ---
 
+### Automated halts: the keeper service — ✅ done, 2026-09-25
+
+Before this, a halt happened when someone ran `script/demo/halt.sh`. Now nobody does.
+
+- **Signal.** Each real xStock's corporate-action schedule, read from Backed's token contract on X Layer mainnet (§3.4 note) in one Multicall3 call, and cross-checked against the free xStocks API (`/assets/{SYMBOL}/multiplier`), which also gives the reason and covers MSFTx, the one market with no X Layer mainnet token. With two sources, the keeper acts on the earlier activation time.
+- **Action.** The keeper maps each stock to its one testnet market and drives the existing contracts. No contract changes were needed:
+  - `beginHalting()` at T − 2h;
+  - multisig `pauseOracle()` + `sync()` at T − 15m, or immediately if first seen later (the SPY case);
+  - after T + 15m, once the new multiplier is in place, a fresh quote → multisig `resumeOracle(price)` + `sync()`;
+  - after a 30-minute cooldown, `completeResume()`, but only if the price is post-action and `isSystemSolvent()` is true. The contract doesn't enforce that check, and `halt.sh` never made it.
+- **Safety rules.**
+  - It only lifts halts it started. A manual halt is reported and left alone.
+  - A source going down is never read as a cancellation.
+  - It never touches `SETTLING`.
+  - Every multisig call is simulated before it's proposed, and the `txId` comes from the proposal's own receipt.
+- **Operations.**
+  - Runs on Railway (project `haltgate-keeper`) from its own key `0x317C…35fd`, authorised on-chain through the real multisig → timelock path with a repeatable tool (`npm run authorize-keeper`). The deployer key isn't on any server.
+  - Also runs the 15-minute price push, so the hourly GitHub workflow is disabled.
+  - A second service, `watchdog`, with its own key `0xFf42…7c08`, calls the permissionless `sync()` on any market that has drifted from its oracle.
+  - Alerts go to Discord or Telegram, with a dead-man's-switch ping, `/health` and a public `/schedule`. The frontend banner reads `/schedule` to say when the next action will halt the market.
+- **Verified.**
+  - 44 unit tests, including every row of the halt timeline.
+  - Full OPEN → HALTING → HALTED → RESUMING → OPEN cycles, driven unattended against an anvil fork of the live testnet, on both the deployer key and the rotated keeper key, confirmed by the contracts' own `StateChanged` logs.
+  - The watchdog repairing a deliberately drifted market.
+  - Deployed and running live. The first real corporate action handled end to end is still to be observed: none was scheduled when this went live.
+
+**What it deliberately does not do:** reduce what the keeper is *trusted* with. The keeper decides and the contracts obey. Moving the rules on-chain is §13, item 1.
+
 ## 12. Mainnet migration path
 
 Everything in §4 and §11 targets X Layer testnet. Migration to X Layer mainnet is a **migration, not a rebuild** — same zkEVM architecture, same Solidity — but several components were deliberately mocked for testnet and need real rework, not just a redeploy with new constructor args.
@@ -378,7 +408,7 @@ Revised 2026-09-18 after §3.4 was resolved: the oracle work is substantially la
 | Component | Testnet (current/planned) | Mainnet requirement |
 |---|---|---|
 | Price ingestion | Mock contract with a readable `latestPrice()` | **Chainlink Data Streams on X Layer mainnet — pull-based, so there is no contract holding a current price to read (§3.4).** Every price-dependent path (`borrow`, `liquidate`, `SwapModule`) needs a caller-supplied signed report verified on-chain. The largest single piece of mainnet work, and bigger than §12 originally implied. |
-| Halt signal | Multisig manually calls `pauseOracle()`/`resumeOracle()` on a mock | No feed exposes a pause flag (§3.4) — detection is via `updatedAt` staleness, which `_requireFreshPrice()` already does. **But staleness cannot distinguish a corporate action from a weekend**, so this needs the CF Benchmarks CA feed or a market-hours calendar. This is the product's core IP and the real design work. |
+| Halt signal | The keeper reads the issuer's on-chain schedule (mainnet) and drives the testnet mock oracle's `pauseOracle()`/`resumeOracle()` through the multisig (§11, *Automated halts*) | `HaltController` reads the raw xStock's `newMultiplierActivationTime()` directly on the same chain, which makes halting permissionless (§13, item 1), with the licensed CF Benchmarks feed as an independent second source (§13, item 2). Staleness (`_requireFreshPrice()`) stays as a separate backstop, paired with a market-hours calendar so a quiet weekend doesn't block borrowing. |
 | Collateral token | `wNVDAx` mock ERC20 with a faucet | Real xStock token from the actual issuer (Backed) — different custody/redemption trust assumptions, no faucet. |
 | `SwapModule` (§11) | Internal oracle-priced swap (no testnet DEX liquidity) | Route through a real DEX/aggregator if liquidity exists (§3.2's confirmed ~$588K TVL Uniswap pool) — an internal fixed-price swap holding real money is a manipulation vector. |
 | Risk parameters | Demo defaults (LTV, liquidation threshold, rate curve, reserve factor) | Re-derived from real volatility/liquidity data before real TVL sits behind them. |
@@ -386,3 +416,30 @@ Revised 2026-09-18 after §3.4 was resolved: the oracle work is substantially la
 | Audit | Foundry tests + Slither self-review | Third-party audit expected before real funds, given lending + liquidation + (post-Phase-3) fixed-term settlement logic. |
 
 Matches the caution already in §6 edge case 8 and §9's success criteria: no claim of mainnet-readiness until every assumption above is independently re-verified against real contracts.
+
+---
+
+## 13. Roadmap — funded, post-hackathon work
+
+The hackathon scope was deliberate: prove the whole mechanism on testnet, including automatic halts driven by real corporate-action data. Everything below is the next stage, planned for when funding allows a mainnet launch. None of it is claimed as built.
+
+**1. On-chain halt rules, done with the mainnet deployment.** Today the keeper decides and the contracts obey. This moves the rules into the contracts:
+- `ICorporateActionSource`, read by `HaltController`. On mainnet, an `XStockCASource` reads the raw xStock's `newMultiplierActivationTime()` on the same chain: no relay, no trusted party.
+- **Permissionless halting.** `sync()` also moves the market to `HALTING`/`HALTED` from the on-chain schedule, so any caller can halt a market on time, and the keeper becomes just the most reliable one.
+- **Solvency on-chain.** `completeResume()` requires `market.isSystemSolvent()` and a minimum time in `RESUMING`, rather than trusting the caller.
+- The keeper-only `beginHalting()` stays as a manual override.
+- **Cost:** `Market.haltController` is immutable, so each market needs a new `HaltController` + `Market` + `LenderVault`. That's why it's scheduled with the mainnet deployment instead of being done twice.
+- **Tests:** every timeline boundary, a new multiplier that never lands (must fall through to `forceSettle`), and a schedule cancelled or moved before T.
+
+**2. Licensed corporate-action data.** The CF Benchmarks xStocks Corporate Action Feed as the primary source: an independent, versioned record whose Pending and Effective stages map onto `HALTING` and `RESUMING`, run alongside the issuer's on-chain schedule. If they disagree, the market halts conservatively and an alert goes out. The feed needs a commercial license.
+
+**3. Mainnet launch.**
+- Chainlink Data Streams price ingestion, which is pull-based, so every price-dependent path takes a signed report (§3.4, §12).
+- Real xStock collateral and DEX routing in place of `SwapModule`.
+- Real multisig co-signers, and a timelock measured in days.
+- Keeper keys in a KMS.
+- Risk parameters re-derived from real data.
+- A third-party audit covering the contracts and the keeper's permissions.
+
+**4. Product.** Converting seized fixed-term collateral back to cash (§11, Milestone 3); lending liquidity programmes.
+

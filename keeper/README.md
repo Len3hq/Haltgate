@@ -169,7 +169,7 @@ ADMIN_PRIVATE_KEY=<deployer key> npm run authorize-keeper -- --keeper <new addre
 
 It's safe to rerun: each run checks what's already done and continues from there. Without `--wait` it stops after scheduling and tells you when to run it again. It finishes by printing each market's keeper. This was tested end to end against a fork of the live testnet.
 
-**Be clear about what the key can still do.** The multisig is 1-of-1, so any signer can propose and execute alone. That makes the keeper key a full multisig signer: in principle it could also schedule timelock changes, with the 10-minute delay. On testnet that's acceptable. Narrowing it properly is the on-chain work of moving the halt rules into the contracts. What this step does achieve is that the **deployer key never sits on a server**, and the keeper key can be revoked (multisig `removeSigner`, timelock `setKeeper`) without redeploying anything.
+**Be clear about what the key can still do.** The multisig is 1-of-1, so any signer can propose and execute alone. That makes the keeper key a full multisig signer: in principle it could also schedule timelock changes, with the 10-minute delay. On testnet that's acceptable. What this step does achieve is that the **deployer key never sits on a server**, and the keeper key can be revoked (multisig `removeSigner`, timelock `setKeeper`) without redeploying anything. Moving the halt rules on-chain, so the keeper needs no trust at all, is on the roadmap for the mainnet deployment: see `/docs/roadmap` in the app and `BUILD.md` §13.
 
 ## Alerts and monitoring
 

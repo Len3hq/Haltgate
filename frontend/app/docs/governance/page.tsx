@@ -14,6 +14,7 @@ export default function GovernancePage() {
         head={["Tier", "Who", "What it controls"]}
         rows={[
           ["Permissionless", "Anyone", "sync(), forceSettle(), liquidate(), settleMatured()"],
+          ["Keeper", "One key, run by the keeper service", "beginHalting(), completeResume()"],
           ["Multisig", "Signers, no delay", "The oracle and the swap module"],
           ["Timelock", "Multisig, behind a delay", "Market, LenderVault, HaltController, InterestRateModel"],
         ]}
@@ -29,6 +30,25 @@ export default function GovernancePage() {
         This is deliberate. A safety mechanism that depends on a privileged keeper is only as reliable as that
         keeper&apos;s uptime, and a guarantee that depends on the same governance that let a market get stuck is not a
         guarantee.
+      </P>
+
+      <H2>The keeper</H2>
+      <P>
+        Each halt controller names one keeper, which can do exactly two things: start a halt early{" "}
+        (<Code>beginHalting()</Code>) and finish one (<Code>completeResume()</Code>). It is run by an automated service
+        that watches the issuer&apos;s corporate-action schedule; see{" "}
+        <DocLink href="/docs/halts">How halts work</DocLink>. To pause and resume the oracle the same key is also a
+        multisig signer.
+      </P>
+      <P>
+        The key is dedicated: it was given its roles through the multisig and the timelock like any other change, the
+        deployer key is not on any server, and either role can be revoked without redeploying anything. A second,
+        separate key belongs to a watchdog that can only call the permissionless <Code>sync()</Code>.
+      </P>
+      <P>
+        What the keeper is trusted with is <em>when</em> to halt and reopen. On mainnet the halt controller reads the
+        schedule and checks solvency itself, which reduces the keeper to a convenience rather than a trusted party. See
+        the <DocLink href="/docs/roadmap">Roadmap</DocLink>.
       </P>
 
       <H2>Multisig, no delay</H2>
@@ -69,8 +89,9 @@ export default function GovernancePage() {
 
       <Callout kind="warn" title="Testnet configuration is not a security boundary">
         The multisig is currently <Strong>1-of-1</Strong> and the timelock delay is <Code>10 minutes</Code>. Both are
-        real contracts wired correctly, but at those parameters neither provides meaningful protection. A production
-        deployment needs real co-signers and a delay measured in days.
+        real contracts wired correctly, but at those parameters neither provides meaningful protection. It also means the
+        keeper key, as a signer, could act alone. A production deployment needs real co-signers and a delay measured in
+        days.
       </Callout>
 
       <H2>Upgrades</H2>
