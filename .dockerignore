@@ -1,0 +1,9 @@
+# Only the keeper is built as a container (keeper/Dockerfile, repo root as the
+# build context). Allow-list exactly what it copies: without this, the context
+# would include videos/ (200+ MB), lib/ and frontend/node_modules.
+*
+!keeper/package.json
+!keeper/package-lock.json
+!keeper/src/
+!frontend/lib/mainnet.ts
+!frontend/lib/contracts.ts

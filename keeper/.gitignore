@@ -1,0 +1,3 @@
+node_modules/
+# Local watcher output. On Railway this lives on a volume at /data.
+data/

@@ -10,4 +10,5 @@ broadcast/*/31337/
 .env
 videos/
 script/demo/
+automation.md
 

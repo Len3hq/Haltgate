@@ -13,6 +13,7 @@ import {
 import { useNow } from "@/lib/use-now";
 import { getErrorMessage } from "@/lib/errors";
 import { TxStatus } from "@/components/dashboard/TxStatus";
+import { CorporateActionNotice } from "@/components/dashboard/CorporateActionNotice";
 import { useMarketContracts } from "@/lib/market-context";
 
 // Mirrors HaltController.MarketState exactly (src/core/HaltController.sol).
@@ -120,6 +121,8 @@ export function HaltStatusBanner() {
           <span className={`text-sm font-semibold ${config.text}`}>{label}</span>
           <span className="text-sm text-[var(--color-text-muted)]">{config.message}</span>
         </div>
+
+        <CorporateActionNotice />
 
         {settlement && (
           <div className="mt-2">

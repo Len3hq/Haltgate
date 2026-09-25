@@ -1,0 +1,29 @@
+{
+  "name": "haltgate-keeper",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Watches real xStock corporate-action schedules and halts the matching HaltGate testnet market automatically.",
+  "type": "module",
+  "engines": {
+    "node": ">=20.6"
+  },
+  "scripts": {
+    "start": "node --import tsx src/watch.ts",
+    "once": "node --import tsx src/watch.ts --once",
+    "plan": "node --import tsx src/watch.ts --once --dry-run",
+    "report": "node --import tsx src/report-cli.ts",
+    "backfill": "node --import tsx src/backfill.ts",
+    "authorize-keeper": "node --import tsx src/tools/authorize-keeper.ts",
+    "sync-watchdog": "node --import tsx src/tools/sync-watchdog.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "node --import tsx --test test/*.test.ts"
+  },
+  "dependencies": {
+    "tsx": "^4.23.15",
+    "viem": "^2.56.5"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "typescript": "^5"
+  }
+}
