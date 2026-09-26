@@ -7,6 +7,7 @@ import { erc20Abi, parseUnits } from "viem";
 import {
   leverageZapAbi,
   useReadMarketGetPosition,
+  useReadMarketHealthFactor,
   useReadMarketMaxLtv,
   useReadMarketLiquidationThreshold,
   useReadMarketIsOperator,
@@ -21,7 +22,8 @@ import { formatAmount, formatBps, formatPrice } from "@/lib/format";
 import { getErrorMessage } from "@/lib/errors";
 import { TxStatus } from "@/components/dashboard/TxStatus";
 import { InfoTip } from "@/components/dashboard/InfoTip";
-import { useMarketContracts } from "@/lib/market-context";
+import { useMarketConfig, useMarketContracts } from "@/lib/market-context";
+import Link from "next/link";
 
 const WAD = 10n ** 18n;
 const MAX_UINT256 = (1n << 256n) - 1n;
@@ -43,6 +45,7 @@ function fromWad(amountWad: bigint, decimals: number): bigint {
 /// on their behalf.
 export function LeveragePanel() {
   const CONTRACTS = useMarketContracts();
+  const config = useMarketConfig();
   const { address, isConnected } = useAccount();
   const [amount, setAmount] = useState("");
   const [targetLeverage, setTargetLeverage] = useState(1.5); // multiple, e.g. 1.5x
@@ -82,6 +85,12 @@ export function LeveragePanel() {
   });
   const existingCollateral = position?.[0] ?? 0n;
   const existingDebt = position?.[1] ?? 0n;
+
+  const { data: healthFactor } = useReadMarketHealthFactor({
+    address: CONTRACTS.market,
+    args: address ? [address] : undefined,
+    query: { enabled: !!address, refetchInterval: 8_000 },
+  });
 
   const { data: maxLtv } = useReadMarketMaxLtv({ address: CONTRACTS.market });
   const { data: liquidationThreshold } = useReadMarketLiquidationThreshold({ address: CONTRACTS.market });
@@ -188,6 +197,31 @@ export function LeveragePanel() {
     };
   }, [price, maxLtv, liquidationThreshold, feeWad, vaultCash, existingCollateral, existingDebt, parsedInitial, effectiveTarget]);
 
+  // What the position already is, so the panel that opens a loop is also where
+  // you check on it. A leveraged position lives in the same Market as a manual
+  // one, so these are live balances rather than a projection.
+  const current = useMemo(() => {
+    if (existingCollateral === 0n && existingDebt === 0n) return null;
+    if (price === undefined || price === 0n || liquidationThreshold === undefined) {
+      return { leverage: null, liquidationPrice: null, dropPct: null };
+    }
+
+    const collateralValueWad = (toWad(existingCollateral, WNVDAX_DECIMALS) * price) / WAD;
+    const debtWad = toWad(existingDebt, USDG_DECIMALS);
+    // Leverage is exposure over equity: what you hold against what is yours.
+    const equityWad = collateralValueWad > debtWad ? collateralValueWad - debtWad : 0n;
+    const leverage = equityWad === 0n ? null : Number(collateralValueWad) / Number(equityWad);
+
+    let liquidationPrice: bigint | null = null;
+    let dropPct: number | null = null;
+    if (debtWad > 0n && existingCollateral > 0n) {
+      liquidationPrice = (debtWad * WAD * WAD) / (toWad(existingCollateral, WNVDAX_DECIMALS) * liquidationThreshold);
+      dropPct = liquidationPrice >= price ? 0 : Number(((price - liquidationPrice) * 10_000n) / price) / 100;
+    }
+
+    return { leverage, liquidationPrice, dropPct };
+  }, [existingCollateral, existingDebt, price, liquidationThreshold]);
+
   const needsApproval = parsedInitial > 0n && (allowance ?? 0n) < parsedInitial;
 
   const enableOp = useWriteMarketSetOperator();
@@ -264,12 +298,75 @@ export function LeveragePanel() {
         ? { bg: "var(--color-warning-bg)", text: "var(--color-warning)" }
         : { bg: "var(--color-bg-elevated)", text: "var(--color-text-muted)" };
 
+  // Health reads undefined while the oracle is paused, which is exactly when the
+  // number would be misleading anyway.
+  const hf = healthFactor === undefined ? null : Number(healthFactor) / 1e18;
+  const currentHf = healthFactor === undefined ? "—" : healthFactor === MAX_UINT256 ? "∞" : hf!.toFixed(2);
+  const currentHfColor =
+    hf === null || healthFactor === MAX_UINT256
+      ? "var(--color-text)"
+      : hf < 1.1
+        ? "var(--color-error)"
+        : hf < 1.5
+          ? "var(--color-warning)"
+          : "var(--color-success)";
+
   return (
     <div className="rounded-[var(--radius-card)] border border-[var(--color-border)] bg-[var(--color-bg-card)] p-4">
       <p className="text-xs uppercase tracking-wide text-[var(--color-text-faint)]">Leverage</p>
       <p className="mt-1 text-xs text-[var(--color-text-muted)]">
         Pick a multiple and the loop runs itself — borrow, swap into more wNVDAx, supply, repeat — in one confirmation.
       </p>
+
+      {/* A loop opened here is a position you have to watch, so the panel that
+          opens it also reports it rather than sending you to the market page. */}
+      {current && (
+        <div className="mt-3 rounded-[var(--radius-card)] border border-[var(--color-border-subtle)] bg-[var(--color-bg-elevated)] p-3">
+          <div className="flex items-baseline justify-between gap-2">
+            <p className="text-[10px] uppercase tracking-wide text-[var(--color-text-faint)]">Your position</p>
+            <span className="font-[family-name:var(--font-display)] text-xs font-semibold text-[var(--color-text)]">
+              {current.leverage === null ? "—" : `${current.leverage.toFixed(2)}x`} now
+            </span>
+          </div>
+
+          <div className="mt-2 grid grid-cols-3 gap-2 text-center text-xs">
+            <div>
+              <p className="text-[10px] text-[var(--color-text-faint)]">Collateral</p>
+              <p className="mt-0.5 font-[family-name:var(--font-display)] font-semibold text-[var(--color-text)]">
+                {formatAmount(existingCollateral, WNVDAX_DECIMALS)}
+              </p>
+            </div>
+            <div>
+              <p className="text-[10px] text-[var(--color-text-faint)]">Debt</p>
+              <p className="mt-0.5 font-[family-name:var(--font-display)] font-semibold text-[var(--color-text)]">
+                {formatAmount(existingDebt, USDG_DECIMALS)} <span className="text-[10px] font-normal">USDG</span>
+              </p>
+            </div>
+            <div>
+              <p className="text-[10px] text-[var(--color-text-faint)]">Health</p>
+              <p className="mt-0.5 font-[family-name:var(--font-display)] font-semibold" style={{ color: currentHfColor }}>
+                {currentHf}
+              </p>
+            </div>
+          </div>
+
+          {current.liquidationPrice !== null && (
+            <p className="mt-2 text-[11px] text-[var(--color-text-muted)]">
+              Liquidates at ${formatPrice(current.liquidationPrice)}
+              {current.dropPct !== null && `, ${current.dropPct.toFixed(1)}% below the current price`}
+            </p>
+          )}
+
+          {/* Unwinding is a repay and a withdraw, which live on the market page
+              -- say where rather than leaving the exit unmarked. */}
+          <Link
+            href={`/app/${config.key}`}
+            className="mt-2 inline-block text-[11px] font-medium text-[var(--color-accent-blue)] hover:underline"
+          >
+            Repay or withdraw in the {config.name} market →
+          </Link>
+        </div>
+      )}
 
       {canSupplyOrBorrow === false && (
         <p className="mt-3 rounded-[var(--radius-card)] bg-[var(--color-warning-bg)] px-3 py-2 text-xs text-[var(--color-warning)]">

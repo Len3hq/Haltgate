@@ -18,7 +18,7 @@ import {
 import { USDG_DECIMALS, WNVDAX_DECIMALS } from "@/lib/contracts";
 import { useMarketContracts } from "@/lib/market-context";
 import { useNow } from "@/lib/use-now";
-import { formatAmount, formatBps } from "@/lib/format";
+import { formatAmount, formatBps, formatCountdown } from "@/lib/format";
 import { getErrorMessage } from "@/lib/errors";
 import { TxStatus } from "@/components/dashboard/TxStatus";
 import { InfoTip } from "@/components/dashboard/InfoTip";
@@ -36,14 +36,6 @@ function toWad(amount: bigint, decimals: number): bigint {
 }
 function fromWad(amountWad: bigint, decimals: number): bigint {
   return decimals === 18 ? amountWad : amountWad / 10n ** BigInt(18 - decimals);
-}
-
-function countdown(maturity: bigint, now: number): string {
-  const left = Number(maturity) - now;
-  if (left <= 0) return "Matured";
-  if (left < 3600) return `${Math.ceil(left / 60)}m left`;
-  if (left < 86400) return `${Math.ceil(left / 3600)}h left`;
-  return `${Math.ceil(left / 86400)}d left`;
 }
 
 /// Fixed rate, fixed term, and no liquidation for the life of the loan.
@@ -212,7 +204,7 @@ export function FixedTermPanel() {
                   isDefaulted ? "text-[var(--color-error)]" : "text-[var(--color-text)]"
                 }`}
               >
-                {countdown(loan[3], now)}
+                {formatCountdown(loan[3], now)}
               </p>
             </div>
           </div>

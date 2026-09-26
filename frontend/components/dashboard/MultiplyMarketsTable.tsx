@@ -1,17 +1,20 @@
 "use client";
 
 import Link from "next/link";
-import { useReadContract } from "wagmi";
+import { useAccount, useReadContract } from "wagmi";
 import { erc20Abi } from "viem";
 import {
   useReadHaltControllerState,
   useReadIPausableOracleLatestPrice,
+  useReadMarketGetPosition,
   useReadMarketMaxLtv,
   useReadMarketTotalBorrows,
   useReadInterestRateModelGetBorrowRatePerSecond,
 } from "@/lib/generated";
-import { MARKETS, SHARED, type MarketConfig } from "@/lib/contracts";
-import { formatApr, formatPrice } from "@/lib/format";
+import { MARKETS, SHARED, USDG_DECIMALS, WNVDAX_DECIMALS, type MarketConfig } from "@/lib/contracts";
+import { formatAmount, formatApr, formatPrice } from "@/lib/format";
+
+const WAD = 10n ** 18n;
 
 const STATE_LABEL = ["OPEN", "HALTING", "HALTED", "RESUMING", "SETTLING"] as const;
 
@@ -24,6 +27,23 @@ const STATE_STYLE: Record<string, string> = {
 };
 
 const COLS = "grid-cols-[1.4fr_0.9fr_0.8fr_0.8fr_0.9fr]";
+/// One extra column once a wallet is connected: an open loop is easy to lose
+/// track of when the panel that opened it sits a click away.
+const COLS_WITH_POSITION = "grid-cols-[1.4fr_0.9fr_0.8fr_0.8fr_0.9fr_1fr]";
+
+function toWad(amount: bigint, decimals: number): bigint {
+  return decimals === 18 ? amount : amount * 10n ** BigInt(18 - decimals);
+}
+
+/// Exposure over equity, the same ratio the Multiply panel reports, so a row and
+/// the panel it links to never disagree.
+function currentLeverage(collateral: bigint, debt: bigint, price: bigint | undefined): string | null {
+  if (price === undefined || price === 0n || collateral === 0n) return null;
+  const collateralValueWad = (toWad(collateral, WNVDAX_DECIMALS) * price) / WAD;
+  const debtWad = toWad(debt, USDG_DECIMALS);
+  if (collateralValueWad <= debtWad) return null;
+  return `${(Number(collateralValueWad) / Number(collateralValueWad - debtWad)).toFixed(2)}x`;
+}
 
 /// A market's ceiling is 1 / (1 - maxLTV), an asymptote the loop approaches
 /// rather than reaches. Derived live so it stays right if the parameter moves.
@@ -32,8 +52,9 @@ function maxLeverage(maxLtv: bigint | undefined): string {
   return `${(1 / (1 - Number(maxLtv) / 1e18)).toFixed(2)}x`;
 }
 
-function MultiplyRow({ config }: { config: MarketConfig }) {
+function MultiplyRow({ config, cols, showPosition }: { config: MarketConfig; cols: string; showPosition: boolean }) {
   const poll = { refetchInterval: 15_000 };
+  const { address } = useAccount();
 
   const { data: state } = useReadHaltControllerState({ address: config.haltController, query: poll });
   const { data: priceData } = useReadIPausableOracleLatestPrice({ address: config.oracle, query: poll });
@@ -54,13 +75,24 @@ function MultiplyRow({ config }: { config: MarketConfig }) {
     query: { enabled: rateArgsReady, ...poll },
   });
 
+  const { data: position } = useReadMarketGetPosition({
+    address: config.market,
+    args: address ? [address] : undefined,
+    query: { enabled: !!address, ...poll },
+  });
+
   const label = state === undefined ? "OPEN" : (STATE_LABEL[state] ?? "OPEN");
   const halted = label !== "OPEN";
+
+  const collateral = position?.[0] ?? 0n;
+  const debt = position?.[1] ?? 0n;
+  const hasPosition = collateral > 0n || debt > 0n;
+  const leverage = currentLeverage(collateral, debt, priceData?.[0]);
 
   return (
     <Link
       href={`/app/multiply/${config.key}`}
-      className={`grid w-full ${COLS} items-center gap-2 rounded-[var(--radius-card)] px-3 py-3 text-left text-xs transition-colors hover:bg-[var(--color-bg-elevated)]`}
+      className={`grid w-full ${cols} items-center gap-2 rounded-[var(--radius-card)] px-3 py-3 text-left text-xs transition-colors hover:bg-[var(--color-bg-elevated)]`}
     >
       <span className="min-w-0">
         <span className="block truncate font-medium text-[var(--color-text)]">{config.name}</span>
@@ -80,6 +112,20 @@ function MultiplyRow({ config }: { config: MarketConfig }) {
       <span className="text-[var(--color-accent-blue)]">{halted ? "—" : formatApr(borrowRate)}</span>
 
       <span className="font-[family-name:var(--font-display)] text-[var(--color-text)]">{maxLeverage(maxLtv)}</span>
+
+      {showPosition &&
+        (hasPosition ? (
+          <span className="min-w-0">
+            <span className="block truncate font-[family-name:var(--font-display)] font-semibold text-[var(--color-text)]">
+              {leverage ?? formatAmount(collateral, WNVDAX_DECIMALS)}
+            </span>
+            <span className="block truncate text-[10px] text-[var(--color-text-faint)]">
+              {formatAmount(debt, USDG_DECIMALS)} USDG debt
+            </span>
+          </span>
+        ) : (
+          <span className="text-[var(--color-text-faint)]">—</span>
+        ))}
     </Link>
   );
 }
@@ -87,6 +133,9 @@ function MultiplyRow({ config }: { config: MarketConfig }) {
 /// Multiply's own market list. Leads with the ceiling each market can actually
 /// reach rather than the contract's 5x cap, which no market here gets near.
 export function MultiplyMarketsTable() {
+  const { isConnected } = useAccount();
+  const cols = isConnected ? COLS_WITH_POSITION : COLS;
+
   return (
     <div className="rounded-[var(--radius-card-lg)] border border-[var(--color-border)] bg-[var(--color-bg-card)] p-4">
       <div className="flex items-baseline justify-between gap-3">
@@ -94,18 +143,25 @@ export function MultiplyMarketsTable() {
         <p className="text-[11px] text-[var(--color-text-muted)]">Ceiling derived from each market&apos;s own max LTV</p>
       </div>
 
-      <div className={`mt-3 grid ${COLS} gap-2 px-3 pb-1 text-[10px] uppercase tracking-wide text-[var(--color-text-faint)]`}>
-        <span>Asset</span>
-        <span>Status</span>
-        <span>Price</span>
-        <span>Borrow</span>
-        <span>Max Leverage</span>
-      </div>
+      {/* Six columns do not fit a phone, so the table scrolls sideways rather
+          than crushing every column to an unreadable width. */}
+      <div className="mt-3 overflow-x-auto">
+        <div className="min-w-[760px]">
+          <div className={`grid ${cols} gap-2 px-3 pb-1 text-[10px] uppercase tracking-wide text-[var(--color-text-faint)]`}>
+            <span>Asset</span>
+            <span>Status</span>
+            <span>Price</span>
+            <span>Borrow</span>
+            <span>Max Leverage</span>
+            {isConnected && <span>Your Position</span>}
+          </div>
 
-      <div className="space-y-1">
-        {MARKETS.map((m) => (
-          <MultiplyRow key={m.key} config={m} />
-        ))}
+          <div className="space-y-1">
+            {MARKETS.map((m) => (
+              <MultiplyRow key={m.key} config={m} cols={cols} showPosition={isConnected} />
+            ))}
+          </div>
+        </div>
       </div>
     </div>
   );

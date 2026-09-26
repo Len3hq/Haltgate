@@ -22,6 +22,15 @@ export function formatPrice(value: bigint | undefined): string {
   return Number(formatUnits(value, 18)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
+/** Time left until a unix-seconds maturity, given a ticking `now` (useNow). */
+export function formatCountdown(maturity: bigint, now: number): string {
+  const left = Number(maturity) - now;
+  if (left <= 0) return "Matured";
+  if (left < 3600) return `${Math.ceil(left / 60)}m left`;
+  if (left < 86400) return `${Math.ceil(left / 3600)}h left`;
+  return `${Math.ceil(left / 86400)}d left`;
+}
+
 const SECONDS_PER_YEAR = 31_536_000n;
 
 /**
